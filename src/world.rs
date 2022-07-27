@@ -3,22 +3,27 @@ use rand::Rng;
 use simdnoise::*;
 use std::collections::HashMap;
 use std::env;
-use std::fs;
-
-
+use std::fs::File;
+use std::io::prelude::*;
+use rayon::prelude::*;
+use bincode;
+use serde::{Serialize, Deserialize};
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Tile {
-    pub x: f32,
-    pub y: f32,
+    pub x: i32,
+    pub y: i32,
     pub h: f32,
     pub current_sprite: String,
 }
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Chunk {
     pub tiles: Vec<Vec<Tile>>
 }
+#[derive(Serialize, Deserialize, Debug)]
 pub struct World {
     pub chunks: Vec<Vec<Chunk>>
 }
-fn generate_chunk(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, x: i32, y: i32) -> Chunk {
+fn generate_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u32, world_height: u32, x: i32, y: i32) -> Chunk {
     let mut tiles = Vec::new();
     let mut rng = rand::thread_rng();
     let ground_noise = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
@@ -38,12 +43,12 @@ fn generate_chunk(seed: i32, chunk_size: u32, world_width: u32, world_height: u3
     for i in 0..chunk_size {
         tiles.push(Vec::new());
         for j in 0..chunk_size {
-            let tile_x = (i as i32 + x*chunk_size as i32) as f32;
-            let tile_y = (j as i32 + y*chunk_size as i32) as f32;
+            let tile_x = (i as i32 + x*chunk_size as i32);
+            let tile_y = (j as i32 + y*chunk_size as i32);
             let tile = Tile {
                 x: tile_x,
                 y: tile_y,
-                h: height_noise[(tile_x + tile_y * chunk_size as f32 * x as f32) as usize],
+                h: height_noise[(tile_x + tile_y * chunk_size as i32 * x) as usize],
                 current_sprite: "grass".to_string(),
             };
             
@@ -55,19 +60,35 @@ fn generate_chunk(seed: i32, chunk_size: u32, world_width: u32, world_height: u3
     };
     return chunk;
 } 
-fn get_generated_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32) -> Vec<Vec<Chunk>>{
+fn get_generated_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32) -> Vec<Vec<Chunk>>{
     let mut chunks = vec![];
     for i in 0..world_width {
         chunks.push(vec![]);
         for j in 0..world_height {
-            chunks[i as usize].push(generate_chunk(seed,chunk_size,world_width,world_height, i as i32,j as i32));
+            chunks[i as usize].push(generate_chunk(seed,sealevel,chunk_size,world_width,world_height, i as i32,j as i32));
         }
     }
     return chunks;
 }
-pub fn get_generated_world() -> World {
+pub fn get_generated_world(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32, name: String) -> World {
     let world = World {
-        chunks: get_generated_chunks(100, 32, 2,2)
-    }; 
+        chunks: get_generated_chunks(seed,chunk_size,world_width,world_height, sealevel)
+    };
     return world;
+}
+pub fn generate_world(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32, name: String) {
+    generate_chunks(seed,chunk_size,world_width,world_height, sealevel)
+}
+fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32)  {
+    (0..world_width).into_par_iter().for_each(|i| {
+        (0..world_height).into_par_iter().for_each(|j| {
+
+            let chunk = generate_chunk(seed,sealevel,chunk_size,world_width,world_height, j as i32,i as i32);
+            let mut file = File::create(format!("../world/chunks/chunk_{}_{}",j,i)).unwrap();
+            let encoded: Vec<u8> = bincode::serialize(&chunk).unwrap();
+
+            file.write_all(&encoded);
+
+        });
+    });
 }
