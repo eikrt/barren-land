@@ -1,4 +1,6 @@
 use journey::client;
-fn main() {
-    client::run();
+use tokio::{main};
+#[tokio::main]
+async fn main() {
+    client::run().await;
 }
