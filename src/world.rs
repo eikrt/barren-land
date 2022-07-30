@@ -14,6 +14,8 @@ pub struct Tile {
     pub x: i32,
     pub y: i32,
     pub h: f32,
+    pub relative_x: i32,
+    pub relative_y: i32,
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub tile_type: String,
@@ -22,6 +24,8 @@ pub struct Tile {
 pub struct Entity {
     pub x: i32,
     pub y: i32,
+    pub relative_x: i32,
+    pub relative_y: i32,
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub entity_type: String,
@@ -41,7 +45,7 @@ pub struct Tiles {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entities {
-    pub entities: Vec<Entity>
+    pub entities: HashMap<u32, Entity>
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct World {
@@ -49,7 +53,7 @@ pub struct World {
 }
 fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u32, world_height: u32, x: i32, y: i32) -> (Tiles, Entities) {
     let mut tiles = Vec::new();
-    let mut entities = Vec::new();
+    let mut entities = HashMap::new();
     let mut rng = rand::thread_rng();
     let ground_noise = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
         .with_freq(0.15)
@@ -81,6 +85,8 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
             let mut tile = Tile {
                 x: tile_x,
                 y: tile_y,
+                relative_x: j as i32,
+                relative_y: i as i32,
                 chunk_x: x,
                 chunk_y: y,
                 h: height_noise[perlin_coord],
@@ -92,6 +98,8 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
             let mut entity = Entity {
                 x: tile_x,
                 y: tile_y,
+                relative_x: j as i32,
+                relative_y: i as i32,
                 chunk_x: x,
                 chunk_y: y,
                 entity_type: "ogre".to_string(),
@@ -99,7 +107,8 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
             
             tiles[i as usize].push(tile);
             if npc_noise[perlin_coord] < 300.0 {
-                entities.push(entity);
+                let id: u32 = rng.gen::<u32>(); 
+                //entities.insert(id, entity);
             }
         }
     }

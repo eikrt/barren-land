@@ -1,6 +1,7 @@
 
 use crate::entities::{Player};
 use crate::world::{World, Tiles, Entities, WorldProperties};
+use crate::queue::{PostData};
 use std::{thread, time};
 use std::io;
 use std::sync::mpsc;
@@ -13,10 +14,13 @@ use std::io::prelude::*;
 use bincode;
 use pancurses::*;
 use pancurses::colorpair::ColorPair;
-use std::collections::HashMap;
+use std::{sync::Mutex, collections::HashMap};
+use once_cell::sync::Lazy;
+
 use serde_json;
 use crate::server::*;
 const REFRESH_TIME: u64 = 1000;
+
 #[derive (Clone)]
 struct ui_tile {
     symbol: String,
@@ -41,6 +45,7 @@ pub async fn load_tiles(x: i32, y: i32) -> Tiles {
     return decoded;
 }
 pub async fn load_entities(x: i32, y: i32) -> Entities {
+
     let resp = reqwest::get(format!("http://localhost:8080/entities/{}/{}", x, y))
         .await.unwrap();
     let body = resp.text().await.unwrap();
@@ -59,8 +64,13 @@ pub fn open_world_properties() -> String {
     let body = fs::read(path).unwrap();
     let decoded: WorldProperties = bincode::deserialize(&body).unwrap();
     let encoded = serde_json::to_string(&decoded).unwrap();
-    println!("{}", encoded);
     return encoded; 
+}
+pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
+    let res = client.post("http://localhost:8080/queue")
+        .json(&action)
+        .send()
+        .await;
 }
 pub async fn run() {
     let mut running = true;
@@ -74,8 +84,21 @@ pub async fn run() {
     let mut right = false;
     let mut compare_time = SystemTime::now();
     let current_tiles = load_tiles(1,1).await; 
-    let current_entities = load_entities(1,1).await; 
-    let current_world_properties = load_properties().await;
+    let client = reqwest::Client::new();
+
+    post_to_queue(
+        client,
+        PostData {
+            params: HashMap::from([
+                ("command".to_string(), "spawn".to_string()),
+                ("id".to_string(), "8".to_string()),
+                ("x".to_string(), "8".to_string()),
+                ("y".to_string(), "8".to_string()),
+                ("chunk_x".to_string(), "1".to_string()),
+                ("chunk_y".to_string(), "1".to_string()),
+        ])
+        }
+    ).await;
     let window = initscr();
     window.refresh();
     window.keypad(true);
@@ -124,7 +147,16 @@ pub async fn run() {
             color: 3,
         },
     );
+    ui_entities.insert(
+        "hero".to_string(),
+        ui_tile {
+            symbol: "@".to_string(),
+            color: 3,
+        },
+    );
     while running {
+
+    let current_entities = load_entities(1,1).await; 
 
     let attributes = ColorPair(3);
     window.attron(attributes);
@@ -143,10 +175,8 @@ pub async fn run() {
             }
             window.addch('\n');
         }
-        for entity in current_entities.entities.iter() {
-            let relative_x = entity.x - entity.chunk_x * current_world_properties.chunk_size as i32;
-            let relative_y = entity.y - entity.chunk_y * current_world_properties.chunk_size as i32;
-            window.mv(relative_x,relative_y);
+        for entity in current_entities.entities.values() {
+            window.mv(entity.relative_x,entity.relative_y);
             let attributes = ColorPair(ui_entities[&entity.entity_type].color);
             window.attron(attributes);
             window.addstr(ui_entities[&entity.entity_type].symbol.clone()); 

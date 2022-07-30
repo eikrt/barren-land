@@ -936,6 +936,7 @@ dependencies = [
  "ears",
  "futures",
  "lerp",
+ "once_cell",
  "palette",
  "pancurses",
  "rand 0.8.5",
