@@ -2,6 +2,7 @@
 use crate::entities::{Player};
 use crate::world::{World, Tiles, Entities, WorldProperties};
 use crate::queue::{PostData};
+use rand::Rng;
 use std::{thread, time};
 use std::io;
 use std::sync::mpsc;
@@ -85,13 +86,14 @@ pub async fn run() {
     let mut compare_time = SystemTime::now();
     let current_tiles = load_tiles(1,1).await; 
     let client = reqwest::Client::new();
-
+    let mut rng = rand::thread_rng();
+    let id: u32 = rng.gen::<u32>(); 
     post_to_queue(
-        client,
+        client.clone(),
         PostData {
             params: HashMap::from([
                 ("command".to_string(), "spawn".to_string()),
-                ("id".to_string(), "8".to_string()),
+                ("id".to_string(), id.to_string()),
                 ("x".to_string(), "8".to_string()),
                 ("y".to_string(), "8".to_string()),
                 ("chunk_x".to_string(), "1".to_string()),
@@ -103,6 +105,7 @@ pub async fn run() {
     window.refresh();
     window.keypad(true);
     window.timeout(REFRESH_TIME as i32);
+    curs_set(0);
     noecho();
     start_color();
     use_default_colors();
@@ -176,7 +179,7 @@ pub async fn run() {
             window.addch('\n');
         }
         for entity in current_entities.entities.values() {
-            window.mv(entity.relative_x,entity.relative_y);
+            window.mv(entity.relative_y,entity.relative_x);
             let attributes = ColorPair(ui_entities[&entity.entity_type].color);
             window.attron(attributes);
             window.addstr(ui_entities[&entity.entity_type].symbol.clone()); 
@@ -186,10 +189,36 @@ pub async fn run() {
         match window.getch() {
             Some(Input::Character(c)) => { 
 
-                    window.addch(c); 
+                //    window.addch(c); 
+                match c {
+                    'w' => {
+                        move_player(client.clone(), id, "up".to_string()).await;
+                        
+                         
+                    },
+                    'a' => {
+                        move_player(client.clone(), id, "left".to_string()).await;
+                        
+                         
+                    },
+                    's' => {
+                        move_player(client.clone(), id, "down".to_string()).await;
+                        
+                         
+                    },
+                    'd' => {
+                        move_player(client.clone(), id, "right".to_string()).await;
+                        
+                         
+                    },
+                    _ => {}
+
+                }
             },
             Some(Input::KeyDC) => running = false,
-            Some(input) => { window.addstr(&format!("{:?}", input)); },
+            Some(input) => {
+                //window.addstr(&format!("{:?}", input)); 
+            },
             None => ()
         }
         let delta_as_millis = delta.as_millis();
@@ -200,4 +229,70 @@ pub async fn run() {
         }
 
     endwin();
+}
+async fn move_player(client: reqwest::Client, id: u32, dir: String) {
+    match dir.as_str() { 
+        "up" => {
+        post_to_queue(
+            client.clone(),
+            PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "move".to_string()),
+                    ("move_dir".to_string(), "up".to_string()),
+                    ("id".to_string(), id.to_string()),
+                    ("chunk_x".to_string(), "1".to_string()),
+                    ("chunk_y".to_string(), "1".to_string()),
+            ])
+            }
+        ).await;
+
+        },
+    "down" => {
+        post_to_queue(
+            client.clone(),
+            PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "move".to_string()),
+                    ("move_dir".to_string(), "down".to_string()),
+                    ("id".to_string(), id.to_string()),
+                    ("chunk_x".to_string(), "1".to_string()),
+                    ("chunk_y".to_string(), "1".to_string()),
+            ])
+            }
+        ).await;
+
+        },
+    "left" => {
+        post_to_queue(
+            client.clone(),
+            PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "move".to_string()),
+                    ("move_dir".to_string(), "left".to_string()),
+                    ("id".to_string(), id.to_string()),
+                    ("chunk_x".to_string(), "1".to_string()),
+                    ("chunk_y".to_string(), "1".to_string()),
+            ])
+            }
+        ).await;
+
+        },
+    "right" => {
+        post_to_queue(
+            client.clone(),
+            PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "move".to_string()),
+                    ("move_dir".to_string(), "right".to_string()),
+                    ("id".to_string(), id.to_string()),
+                    ("chunk_x".to_string(), "1".to_string()),
+                    ("chunk_y".to_string(), "1".to_string()),
+            ])
+            }
+        ).await;
+
+        }
+
+    _ => {}
+    }
 }

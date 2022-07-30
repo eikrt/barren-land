@@ -25,7 +25,6 @@ pub fn queue_to_object(data: web::Json<PostData>) -> PostData {
 }
 pub fn add_to_queue(q: web::Data<Mutex<ActionQueue>>,data: PostData) {
     let mut state = &mut *(q.lock().unwrap());
-    println!("{:?}", state);
     state.queue.push(data);
 }
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
@@ -40,14 +39,13 @@ pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
 pub fn execute_action(action: PostData) {
     let mut rng = rand::thread_rng();
     let w_p = open_world_properties_to_struct();
+    let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
+    let action_chunk_y = action.params["chunk_y"].parse::<i32>().unwrap();
+    let mut action_entities = open_entities_as_struct(action_chunk_x as i32,action_chunk_y as i32);
     if action.params["command"] == "spawn" {
         let action_x: i32 = action.params["x"].parse::<i32>().unwrap()
 ;
         let action_y: i32 = action.params["y"].parse::<i32>().unwrap();
-        let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
-        let action_chunk_y = action.params["chunk_y"].parse::<i32>().unwrap();
-
-        let mut action_entities = open_entities_as_struct(action_chunk_x as i32,action_chunk_y as i32);
         let id: u32 = action.params["id"].parse::<u32>().unwrap();
         let mut entity = Entity {
             x: w_p.chunk_size as i32 * action_chunk_x + action_x,
@@ -59,8 +57,12 @@ pub fn execute_action(action: PostData) {
             entity_type: "hero".to_string(),
         };
         action_entities.entities.insert(id, entity);
-        write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
     }
+    else if action.params["command"] == "move" {
+            action_entities.entities.get_mut(&(action.params["id"].parse::<u32>().unwrap())).unwrap().move_dir(action.params["move_dir"].to_string());
+
+    }
+    write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
     
 }
 pub fn write_entities_to_file(x: i32, y: i32, write_entities: Entities) {

@@ -30,6 +30,37 @@ pub struct Entity {
     pub chunk_y: i32,
     pub entity_type: String,
 }
+impl Entity {
+    pub fn move_dir(&mut self, dir: String) {
+        match dir.as_str() {
+            "up" => {
+                self.relative_y -= 1;
+                self.y -= 1;
+
+
+            },
+            "down" => {
+                self.relative_y += 1;
+                self.y += 1;
+
+
+            },
+            "left" => {
+                self.relative_x -= 1;
+                self.x -= 1;
+
+
+            },
+            "right" => {
+                self.relative_x += 1;
+                self.x += 1;
+
+
+            },
+            _ => {}
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorldProperties {
     pub seed: i32,
