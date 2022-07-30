@@ -7,12 +7,17 @@ use bincode;
 
 #[derive(Serialize, Deserialize)]
 struct PostData {
-    name: String,
+    command: String,
 }
 #[derive(Serialize, Deserialize)]
 struct ChunkGetData {
     x: i32,
     y: i32,
+}
+fn queue_to_object(data: web::Json<PostData>) -> PostData {
+    PostData{
+        command: data.command.clone()
+    }
 }
 pub fn open_tiles(x: i32, y: i32) -> String {
     let path = format!("world/chunks/chunk_{}_{}/tiles.dat",x,y);
@@ -53,9 +58,10 @@ async fn world_properties(_req: HttpRequest) -> impl Responder {
     HttpResponse::Ok()
         .body(contents)
 }
-#[get("/index")]
-async fn index(_req: HttpRequest) -> impl Responder {
-    web::Bytes::from_static(b"Hello world!")
+#[post("/queue")]
+async fn post_queue(post: web::Json<PostData>) -> impl Responder {
+    let contents = queue_to_object(post);
+    HttpResponse::Ok()
 }
 #[actix_web::main] // or #[tokio::main]
 pub async fn main() -> std::io::Result<()> {
@@ -63,9 +69,9 @@ pub async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(middleware::Compress::default())
             .service(world_properties)
-            .service(index)
             .service(tiles)
             .service(entities)
+            .service(post_queue)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

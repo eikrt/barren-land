@@ -65,17 +65,25 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
         .with_seed(seed * 2)
         .with_lacunarity(0.8)
         .generate_scaled(0.0, 512.0);
+    let npc_noise = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
+        .with_freq(0.85)
+        .with_octaves(8.0 as u8)
+        .with_gain(2.0)
+        .with_seed(seed * 3)
+        .with_lacunarity(0.8)
+        .generate_scaled(0.0, 512.0);
     for i in 0..chunk_size {
         tiles.push(Vec::new());
         for j in 0..chunk_size {
             let tile_x = (j as i32 + x*chunk_size as i32);
             let tile_y = (i as i32 + y*chunk_size as i32);
+            let perlin_coord = ((tile_x + tile_y * world_width as i32 *chunk_size as i32 ) as i32) as usize;
             let mut tile = Tile {
                 x: tile_x,
                 y: tile_y,
                 chunk_x: x,
                 chunk_y: y,
-                h: height_noise[((tile_x + tile_y * world_width as i32 *chunk_size as i32 ) as i32) as usize],
+                h: height_noise[perlin_coord],
                 tile_type: "rock".to_string(),
             };
             if tile.h < sealevel {
@@ -90,7 +98,9 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
             };
             
             tiles[i as usize].push(tile);
-            entities.push(entity);
+            if npc_noise[perlin_coord] < 300.0 {
+                entities.push(entity);
+            }
         }
     }
     let tiles = Tiles {
