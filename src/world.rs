@@ -20,7 +20,7 @@ pub struct Tile {
     pub chunk_y: i32,
     pub tile_type: String,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Entity {
     pub x: i32,
     pub y: i32,
@@ -36,7 +36,6 @@ impl Entity {
             "up" => {
                 self.relative_y -= 1;
                 self.y -= 1;
-
 
             },
             "down" => {
@@ -72,11 +71,15 @@ pub struct WorldProperties {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tiles {
-    pub tiles: Vec<Vec<Tile>>
+    pub tiles: Vec<Vec<Tile>>,
+    pub x: i32,
+    pub y: i32,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entities {
-    pub entities: HashMap<u32, Entity>
+    pub entities: HashMap<u32, Entity>,
+    pub x: i32,
+    pub y: i32,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct World {
@@ -144,10 +147,14 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
         }
     }
     let tiles = Tiles {
-        tiles: tiles
+        tiles: tiles,
+        x: x,
+        y: y,
     };
     let entities = Entities {
-        entities: entities
+        entities: entities,
+        x: x,
+        y: y,
     };
     return (tiles, entities);
 } 
