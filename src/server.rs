@@ -4,6 +4,7 @@ use crate::world::*;
 use crate::queue::*;
 use std::{thread,time};
 use std::fs;
+use std::{collections::HashMap};
 use bincode;
 use once_cell::sync::Lazy;
 use std::sync::{Mutex, Arc, RwLock};
@@ -24,7 +25,11 @@ pub fn open_tiles(x: i32, y: i32) -> String {
 pub fn open_entities(x: i32, y: i32) -> String {
     let path = format!("world/chunks/chunk_{}_{}/entities.dat",x,y);
     let body = fs::read(path).unwrap();
-    let decoded: Entities = bincode::deserialize(&body).unwrap();
+    let decoded: Entities = bincode::deserialize(&body).unwrap_or(Entities {
+        entities: HashMap::new(),
+        x: 0,
+        y: 0,
+    });
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded; 
 }

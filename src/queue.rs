@@ -24,7 +24,17 @@ pub fn queue_to_object(data: web::Json<PostData>) -> PostData {
     }
 }
 pub fn add_to_queue(q: web::Data<Mutex<ActionQueue>>,data: PostData) {
-    let mut state = &mut *(q.lock().unwrap());
+    let default_queue = ActionQueue {
+        queue: Vec::new(),
+    };
+    let default_mutex = Mutex::new(
+        default_queue,
+    );
+    let default_data = web::Data::new(default_mutex);
+    let default_value = default_data.lock().unwrap();
+    let mut state = &mut *(q.lock().unwrap_or(
+        default_value
+    ));
     state.queue.push(data);
 }
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
@@ -45,8 +55,8 @@ pub fn execute_action(action: PostData) {
     let mut action_entities = open_entities_as_struct(action_chunk_x as i32,action_chunk_y as i32);
     let mut remove_entity = false;
     let mut add_entity = false;
-    let mut chunk_x_to_add = 1;
-    let mut chunk_y_to_add = 1;
+    let mut chunk_x_to_add = action_chunk_x;
+    let mut chunk_y_to_add = action_chunk_y;
     if action.params["command"] == "spawn" {
         let action_x: i32 = action.params["x"].parse::<i32>().unwrap()
 ;
@@ -63,7 +73,11 @@ pub fn execute_action(action: PostData) {
         action_entities.entities.insert(id, entity);
     }
     else if action.params["command"] == "move" {
-        println!("{}", action_chunk_x);
+        
+        println!("x: {}, y: {}",action_chunk_x, action_chunk_y);
+        if !action_entities.entities.contains_key(&id) {
+            return;
+        }
         let e = action_entities.entities.get_mut(&id).unwrap();
         e.move_dir(action.params["move_dir"].to_string());
         if e.relative_x < 0{
@@ -93,12 +107,14 @@ pub fn execute_action(action: PostData) {
         }
     }
     if add_entity && chunk_x_to_add >= 0 && chunk_x_to_add <= w_p.world_width as i32 && chunk_y_to_add >= 0 && chunk_y_to_add <= w_p.world_height as i32 {
+
+        println!("x: {}, y: {}",chunk_x_to_add, chunk_y_to_add);
+        println!("entity added");
         let mut add_entities = open_entities_as_struct(chunk_x_to_add as i32,chunk_y_to_add as i32);
         let e = action_entities.entities.get(&id).unwrap();
         add_entities.entities.insert(id, e.clone());
         write_entities_to_file(chunk_x_to_add, chunk_y_to_add, add_entities);
 
-        println!("asdfdsfdsfjkdsfdsf");
 
     }
     if remove_entity {

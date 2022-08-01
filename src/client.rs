@@ -47,42 +47,58 @@ pub fn open_tiles(x:i32,y:i32) -> Tiles {
     let decoded: Tiles = bincode::deserialize(&t).unwrap();
     return decoded; 
 }
-pub async fn load_tiles(x: i32, y: i32) -> Tiles {
-    let resp = reqwest::get(format!("http://localhost:8080/tiles/{}/{}", x, y))
-        .await.unwrap();
+pub async fn load_tiles(client: reqwest::Client, x: i32, y: i32) -> Tiles {
+    let resp = client.get(format!("http://localhost:8080/tiles/{}/{}", x, y))
+        .send()
+        .await
+        .unwrap();
+    let body = resp.text().await.unwrap();
+
+    let decoded = serde_json::from_str(&body).unwrap(); 
+    return decoded;
+}
+pub async fn load_entities(client: reqwest::Client, x: i32, y: i32) -> Entities {
+
+    let resp = client.get(format!("http://localhost:8080/entities/{}/{}",x,y))
+        .send()
+        .await;
+    let resp = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            endwin();
+            panic!();
+        },
+
+    };
     let body = resp.text().await.unwrap();
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
-pub async fn load_entities(x: i32, y: i32) -> Entities {
+pub async fn load_player(client: reqwest::Client, x: i32, y: i32, id: u32) -> Entity {
 
-    let resp = reqwest::get(format!("http://localhost:8080/entities/{}/{}", x, y))
-        .await.unwrap();
-    let body = resp.text().await.unwrap();
-    let decoded = serde_json::from_str(&body).unwrap(); 
-    return decoded;
-}
-pub async fn load_player(x: i32, y: i32, id: u32) -> Entity {
-
-    let resp = reqwest::get(format!("http://localhost:8080/entities/{}/{}", x, y))
-        .await.unwrap();
+    let resp = client.get("http://localhost:8080/entities/{}/{}")
+        .send()
+        .await
+        .unwrap();
     let body = resp.text().await.unwrap();
     let decoded: Entities = serde_json::from_str(&body).unwrap(); 
     return decoded.entities.get(&id).unwrap().clone();
 }
-pub async fn load_properties() -> WorldProperties {
-    let resp = reqwest::get(format!("http://localhost:8080/world_properties"))
-        .await.unwrap();
+pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
+    let resp = client.get("http://localhost:8080/world_properties")
+        .send()
+        .await
+        .unwrap();
     let body = resp.text().await.unwrap();
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
-pub fn open_world_properties() -> String {
+pub fn open_world_properties(client: reqwest::Client) -> WorldProperties {
     let path = "world/world_properties.dat";
     let body = fs::read(path).unwrap();
     let decoded: WorldProperties = bincode::deserialize(&body).unwrap();
     let encoded = serde_json::to_string(&decoded).unwrap();
-    return encoded; 
+    return decoded; 
 }
 pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
     let res = client.post("http://localhost:8080/queue")
@@ -100,16 +116,18 @@ pub async fn run() {
     let mut down = false;
     let mut left = false;
     let mut right = false;
+    let render_x = 2;
+    let render_y = 3;
     let mut compare_time = SystemTime::now();
-    let current_world_properties = open_world_properties_to_struct();
+    let client = reqwest::Client::new();
+    let current_world_properties = open_world_properties(client.clone());
     let mut current_chunk_tiles = Vec::new();
-    for i in 0..2 {
+    for i in 0..render_y {
         current_chunk_tiles.push(Vec::new());
-        for j in 0..3 {
-            current_chunk_tiles[i].push(load_tiles(j as i32,i as i32).await); 
+        for j in 0..render_x {
+            current_chunk_tiles[i].push(load_tiles(client.clone(), j as i32,i as i32).await); 
         }
     }
-    let client = reqwest::Client::new();
     let mut rng = rand::thread_rng();
     let id: u32 = rng.gen::<u32>(); 
     let mut client_player = ClientPlayer {
@@ -192,13 +210,26 @@ pub async fn run() {
     while running {
 
     let mut current_chunk_entities = Vec::new();
-    for i in 0..2 {
+    for i in 0..render_y*2 {
         current_chunk_entities.push(Vec::new());
-        for j in 0..3 {
-            let c_x = client_player.chunk_x + j as i32;
-            let c_y = client_player.chunk_y + i as i32;
-
-            current_chunk_entities[i].push(load_entities(c_x as i32,c_y as i32).await); 
+        for j in 0..render_x*2 {
+            let r_i = i as i32 - render_y as i32;
+            let r_j = j as i32 - render_x as i32;
+            let mut c_x = client_player.chunk_x + r_j as i32;
+            let mut c_y = client_player.chunk_y + r_i as i32;
+            if c_x < 0 {
+                c_x = 0;
+            }
+            if c_y < 0 {
+                c_y = 0;
+            }
+            if c_x > (current_world_properties.world_width - 1) as i32 {
+                c_x = current_world_properties.world_width as i32 - 1;
+            }
+            if c_y > (current_world_properties.world_height- 1) as i32 {
+                c_y = current_world_properties.world_width as i32 - 1;
+            }
+            current_chunk_entities[i].push(load_entities(client.clone(), c_x as i32,c_y as i32).await); 
         }
     }
 
@@ -283,6 +314,15 @@ pub async fn run() {
                     else if client_player.relative_x > current_world_properties.chunk_size as i32 - 1{
                         client_player.chunk_x += 1;
                         client_player.relative_x = 0;
+
+                        current_chunk_tiles = Vec::new();
+                        for i in 0..render_y {
+                            current_chunk_tiles.push(Vec::new());
+                            for j in 0..render_x {
+                                current_chunk_tiles[i].push(load_tiles(client.clone(), j as i32,i as i32).await); 
+                            }
+                        }
+
                     }
                     else if client_player.relative_y > current_world_properties.chunk_size as i32 - 1{
                         client_player.chunk_y += 1;
