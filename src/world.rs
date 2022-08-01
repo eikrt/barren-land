@@ -75,11 +75,29 @@ pub struct Tiles {
     pub x: i32,
     pub y: i32,
 }
+impl Default for Tiles {
+    fn default() -> Tiles {
+        Tiles {
+            tiles: Vec::new(),
+            x: 0,
+            y: 0,
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entities {
     pub entities: HashMap<u32, Entity>,
     pub x: i32,
     pub y: i32,
+}
+impl Default for Entities {
+    fn default() -> Entities {
+        Entities {
+            entities: HashMap::new(),
+            x: 0,
+            y: 0,
+        }
+    }
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct World {

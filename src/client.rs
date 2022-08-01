@@ -11,6 +11,7 @@ use std::sync::mpsc::TryRecvError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs::File;
 use std::fs;
+use std::env;
 use std::io::prelude::*;
 use bincode;
 use pancurses::*;
@@ -103,6 +104,15 @@ pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
+pub async fn load_check_if_client_with_id(client: reqwest::Client, id: u32) -> bool{
+    let resp = client.get(format!("http://localhost:8080/client_exists/{}", id))
+        .send()
+        .await
+        .unwrap();
+    let body = resp.text().await.unwrap();
+    let decoded = body.parse().unwrap(); 
+    return decoded;
+}
 pub fn open_world_properties(client: reqwest::Client) -> WorldProperties {
     let path = "world/world_properties.dat";
     let body = fs::read(path).unwrap();
@@ -129,6 +139,7 @@ pub async fn run() {
     let mut move_dir = '?';
     let mut endless_move_mode = false;
     let mut input_change = 0;
+    let args: Vec<String> = env::args().collect();
     let render_x = 2;
     let render_y = 2;
     let mut compare_time = SystemTime::now();
@@ -138,8 +149,13 @@ pub async fn run() {
         x: 0,
         y: 0,
     };
+
     let mut rng = rand::thread_rng();
-    let id: u32 = rng.gen::<u32>(); 
+    
+    let mut id: u32 = rng.gen::<u32>(); 
+    if args.len() == 3 {
+        id = args[2].parse().unwrap();
+    }
     let mut client_player = ClientPlayer {
         x: 2,
         y: 2,
@@ -150,19 +166,21 @@ pub async fn run() {
         render_x: 0,
         render_y: 0,
     };
-    post_to_queue(
-        client.clone(),
-        PostData {
-            params: HashMap::from([
-                ("command".to_string(), "spawn".to_string()),
-                ("id".to_string(), id.to_string()),
-                ("x".to_string(), format!("{}", client_player.x).to_string()),
-                ("y".to_string(), format!("{}", client_player.y).to_string()),
-                ("chunk_x".to_string(), format!("{}", client_player.chunk_x).to_string()),
-                ("chunk_y".to_string(), format!("{}", client_player.chunk_y).to_string()),
-        ])
-        }
-    ).await;
+    if !load_check_if_client_with_id(client.clone(), id).await {
+        post_to_queue(
+            client.clone(),
+            PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "spawn".to_string()),
+                    ("id".to_string(), id.to_string()),
+                    ("x".to_string(), format!("{}", client_player.x).to_string()),
+                    ("y".to_string(), format!("{}", client_player.y).to_string()),
+                    ("chunk_x".to_string(), format!("{}", client_player.chunk_x).to_string()),
+                    ("chunk_y".to_string(), format!("{}", client_player.chunk_y).to_string()),
+            ])
+            }
+        ).await;
+    }
     let window = initscr();
     window.refresh();
     window.keypad(true);
