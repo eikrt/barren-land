@@ -1,8 +1,8 @@
 use journey::world;
 fn main() {
     let seed = 32;
-    let width = 8;
-    let height = 8;
+    let width = 4;
+    let height = 4;
     let chunk_size = 32;
     let sealevel = 256.0;
     let name = "Land".to_string();
