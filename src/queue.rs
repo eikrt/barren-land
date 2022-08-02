@@ -40,10 +40,11 @@ pub fn add_to_queue(q: web::Data<Mutex<ActionQueue>>,data: PostData) {
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
     let mut state = &mut *(q.lock().unwrap());
     if state.queue.len() > 0 {
-        let latest = &state.queue[0];
+        println!("in queue: {}", state.queue.len());
+        let latest = &state.queue[state.queue.len()-1];
         println!("{:?}", latest);
         execute_action(latest.clone());
-        state.queue.pop();
+        state.queue.remove(0);
     }
 }
 pub fn execute_action(action: PostData) {

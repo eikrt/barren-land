@@ -116,7 +116,6 @@ pub async fn load_check_if_client_with_id(client: reqwest::Client, username: Str
         .await
         .unwrap();
     let body = resp.text().await.unwrap();
-    println!("{:?}", body);
     let decoded = body.parse().unwrap(); 
     return decoded;
 }
@@ -162,10 +161,10 @@ pub async fn run() {
     let mut id: u64 = rng.gen::<u64>(); 
     let mut username = "".to_string();
     if args.len() == 3 {
-        let password: String = args[2].parse().unwrap();
-        id = calculate_hash(&password);
-        
         username = args[1].clone();
+        let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
+        id = calculate_hash(&to_hashed);
+        
     }
     let mut client_player = ClientPlayer {
         x: 2,
@@ -174,8 +173,8 @@ pub async fn run() {
         relative_y: 2,
         chunk_x: 0,
         chunk_y: 0,
-        render_x: 0,
-        render_y: 0,
+        render_x: 2,
+        render_y: 2,
     };
     if !load_check_if_client_with_id(client.clone(), username, id).await {
         post_to_queue(
@@ -191,6 +190,8 @@ pub async fn run() {
             ])
             }
         ).await;
+    }
+    else {
     }
     let window = initscr();
     window.refresh();
@@ -319,6 +320,10 @@ pub async fn run() {
                     if e_id == &id {
                         client_player.render_x = rel_x;
                         client_player.render_y = rel_y;
+                        client_player.relative_x = entity.relative_x;
+                        client_player.relative_y = entity.relative_y;
+                        client_player.x = entity.x;
+                        client_player.y = entity.y;
                     }
                     window.mv(rel_y, rel_x);
                     let attributes = ColorPair(ui_entities[&entity.entity_type].color);
@@ -329,6 +334,10 @@ pub async fn run() {
             }
         }
 
+        /*window.mv(client_player.render_y, client_player.render_x);
+        let attributes = ColorPair(ui_entities["ogre"].color);
+        window.attron(attributes);
+        window.addstr(ui_entities["ogre"].symbol.clone()); */
         match window.getch() {
             Some(Input::Character(c)) => { 
                 //    window.addch(c); 
@@ -424,6 +433,7 @@ pub async fn run() {
                     move_player(client.clone(), id, "right".to_string(),client_player.clone()).await;
                     client_player.x += 1;
                     client_player.relative_x += 1;
+                    
                     if client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
                         camera.x += 1;   
                     }
@@ -432,27 +442,51 @@ pub async fn run() {
             },
             _ => {}
         }
-        if client_player.relative_x < 0{
-            client_player.chunk_x -= 1;
-            client_player.relative_x = current_world_properties.chunk_size as i32 - 1;
+       /* if client_player.relative_x < 0{
+            //client_player.chunk_x -= 1;
+            //client_player.relative_x = current_world_properties.chunk_size as i32 - 1;
             refresh_tiles = true;
         }
         else if client_player.relative_y < 0{
-            client_player.chunk_y -= 1;
-            client_player.relative_y = current_world_properties.chunk_size as i32 - 1;
+            //client_player.chunk_y -= 1;
+            //client_player.relative_y = current_world_properties.chunk_size as i32 - 1;
             refresh_tiles = true;
         }
         else if client_player.relative_x > current_world_properties.chunk_size as i32 - 1{
-            client_player.chunk_x += 1;
-            client_player.relative_x = 0;
+            //client_player.chunk_x += 1;
+            //client_player.relative_x = 0;
             refresh_tiles = true;
 
         }
         else if client_player.relative_y > current_world_properties.chunk_size as i32 - 1{
-            client_player.chunk_y += 1;
-            client_player.relative_y = 0;
+            //client_player.chunk_y += 1;
+            //client_player.relative_y = 0;
             refresh_tiles = true;
 
+        }*/
+        if move_dir == 'd' {
+        if client_player.relative_x == current_world_properties.chunk_size as i32 {
+            client_player.chunk_x += 1;
+            refresh_tiles = true;
+        }
+        }
+        if move_dir == 's' {
+        if client_player.relative_y == current_world_properties.chunk_size as i32 {
+            client_player.chunk_y += 1;
+            refresh_tiles = true;
+        }
+        }
+        if move_dir == 'a' {
+        if client_player.relative_x == -1 {
+            client_player.chunk_x -= 1;
+            refresh_tiles = true;
+        }
+        }
+        if move_dir == 'w' {
+        if client_player.relative_y == -1 { 
+            client_player.chunk_y -= 1;
+            refresh_tiles = true;
+        }
         }
         if !endless_move_mode {
             move_dir = '?';

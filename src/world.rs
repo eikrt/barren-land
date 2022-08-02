@@ -9,6 +9,7 @@ use rayon::prelude::*;
 use bincode;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
+use crate::server::{write_client_ids_to_file, ClientIds};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tile {
     pub x: i32,
@@ -179,6 +180,7 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
 pub fn generate_world(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32, name: String) {
     generate_chunks(seed,chunk_size,world_width,world_height, sealevel);
     write_world_properties(seed,chunk_size,world_width,world_height, sealevel, name);
+    write_client_ids_to_file(ClientIds::default());
 }
 pub fn write_world_properties(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32, name: String) {
     let world_properties = WorldProperties {
