@@ -86,7 +86,7 @@ impl Default for Tiles {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entities {
-    pub entities: HashMap<u32, Entity>,
+    pub entities: HashMap<u64, Entity>,
     pub x: i32,
     pub y: i32,
 }

@@ -1,9 +1,10 @@
-
+use std::collections::hash_map::DefaultHasher;
 use crate::entities::{Player};
 use crate::world::{World, Tiles, Entities, WorldProperties, Entity, Tile};
 use crate::queue::{PostData};
 use rand::Rng;
 use std::{thread, time};
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
@@ -51,6 +52,11 @@ struct Camera {
     x: i32,
     y: i32,
 }
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
 pub fn open_tiles(x:i32,y:i32) -> Tiles {
     let path = format!("world/chunks/chunk_{}_{}/tiles.dat",x,y);
     let t = fs::read(path).unwrap();
@@ -85,7 +91,7 @@ pub async fn load_entities(client: reqwest::Client, x: i32, y: i32) -> Entities 
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
-pub async fn load_player(client: reqwest::Client, x: i32, y: i32, id: u32) -> Entity {
+pub async fn load_player(client: reqwest::Client, x: i32, y: i32, id: u64) -> Entity {
 
     let resp = client.get("http://localhost:8080/entities/{}/{}")
         .send()
@@ -104,12 +110,13 @@ pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
-pub async fn load_check_if_client_with_id(client: reqwest::Client, id: u32) -> bool{
-    let resp = client.get(format!("http://localhost:8080/client_exists/{}", id))
+pub async fn load_check_if_client_with_id(client: reqwest::Client, username: String, id: u64) -> bool{
+    let resp = client.get(format!("http://localhost:8080/client_exists/{}/{}", username, id))
         .send()
         .await
         .unwrap();
     let body = resp.text().await.unwrap();
+    println!("{:?}", body);
     let decoded = body.parse().unwrap(); 
     return decoded;
 }
@@ -152,9 +159,13 @@ pub async fn run() {
 
     let mut rng = rand::thread_rng();
     
-    let mut id: u32 = rng.gen::<u32>(); 
+    let mut id: u64 = rng.gen::<u64>(); 
+    let mut username = "".to_string();
     if args.len() == 3 {
-        id = args[2].parse().unwrap();
+        let password: String = args[2].parse().unwrap();
+        id = calculate_hash(&password);
+        
+        username = args[1].clone();
     }
     let mut client_player = ClientPlayer {
         x: 2,
@@ -166,7 +177,7 @@ pub async fn run() {
         render_x: 0,
         render_y: 0,
     };
-    if !load_check_if_client_with_id(client.clone(), id).await {
+    if !load_check_if_client_with_id(client.clone(), username, id).await {
         post_to_queue(
             client.clone(),
             PostData {
@@ -482,7 +493,7 @@ pub async fn run() {
 
     endwin();
 }
-async fn move_player(client: reqwest::Client, id: u32, dir: String, client_player: ClientPlayer) {
+async fn move_player(client: reqwest::Client, id: u64, dir: String, client_player: ClientPlayer) {
     match dir.as_str() { 
         "up" => {
         post_to_queue(

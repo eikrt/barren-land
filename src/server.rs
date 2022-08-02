@@ -17,16 +17,17 @@ struct ChunkGetData {
 }
 #[derive(Serialize, Deserialize)]
 pub struct IdQueryData {
-    id: u32,
+    id: u64,
+    username: String,
 }
 #[derive(Serialize, Deserialize)]
 pub struct ClientIds{
-    ids: Vec<u32>,
+    ids: HashMap<String, u64>,
 }
 impl Default for ClientIds {
     fn default() -> ClientIds {
         ClientIds {
-            ids: Vec::new()
+            ids: HashMap::new()
         }
     }
 }
@@ -76,9 +77,12 @@ pub fn open_client_ids() -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded; 
 }
-pub fn add_client_id(id: u32) {
+pub fn add_client_id(username: String, id: u64) {
     let mut client_ids = open_client_ids_to_struct();
-    client_ids.ids.push(id);
+    client_ids.ids.insert(
+        username.clone(),
+        id
+    );
     write_client_ids_to_file(client_ids);
 }
 pub fn open_world_properties_to_struct() -> WorldProperties {
@@ -94,10 +98,10 @@ pub fn write_client_ids_to_file(client_ids: ClientIds) {
     ids_file.write_all(&encoded);
 
 }
-pub fn check_if_client_exists(id: u32) -> bool{
+pub fn check_if_client_exists(username: String, id: u64) -> bool{
     let mut exists = false;
     let ids = open_client_ids_to_struct();
-    if ids.ids.contains(&id) {
+    if ids.ids.contains_key(&username) {
         exists = true;
     }
     return exists;
@@ -120,12 +124,12 @@ async fn world_properties(_req: HttpRequest) -> impl Responder {
     HttpResponse::Ok()
         .body(contents)
 }
-#[get("/client_exists/{id}")]
+#[get("/client_exists/{username}/{id}")]
 async fn client_exists(data: web::Path<IdQueryData>) -> impl Responder {
-    let exists = check_if_client_exists(data.id);
+    let exists = check_if_client_exists(data.username.clone(),data.id);
     let contents = format!("{}", exists);
     if !exists {
-        add_client_id(data.id);
+        add_client_id(data.username.clone(), data.id);
     } 
     HttpResponse::Ok()
         .body(contents)

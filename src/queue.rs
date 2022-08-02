@@ -51,7 +51,7 @@ pub fn execute_action(action: PostData) {
     let w_p = open_world_properties_to_struct();
     let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
     let action_chunk_y = action.params["chunk_y"].parse::<i32>().unwrap();
-    let id = action.params["id"].parse::<u32>().unwrap();
+    let id = action.params["id"].parse::<u64>().unwrap();
     let mut action_entities = open_entities_as_struct(action_chunk_x as i32,action_chunk_y as i32);
     let mut remove_entity = false;
     let mut add_entity = false;
