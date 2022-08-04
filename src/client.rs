@@ -32,7 +32,8 @@ const HUD_X: u8 = 0;
 const HUD_Y: u8 = 32;
 const HUD_WIDTH: u8 = 64;
 const HUD_HEIGHT: u8 = 12;
-const MARGIN: i32 = 1;
+const MARGIN_X: i32 = 0;
+const MARGIN_Y: i32 = 1;
 #[derive (Clone)]
 struct ui_tile {
     symbol: String,
@@ -235,14 +236,51 @@ pub async fn run() {
     init_pair(5,COLOR_BLACK, COLOR_BLACK);
     init_pair(6,COLOR_WHITE, COLOR_WHITE);
     init_pair(7,COLOR_BLACK, COLOR_WHITE);
+    init_pair(8,COLOR_WHITE, COLOR_MAGENTA);
+    init_pair(9,COLOR_WHITE, COLOR_BLACK);
     let mut ui_tiles = HashMap::new();
     let mut ui_entities = HashMap::new();
     let mut ui_hud = HashMap::new();
     let mut ui_world_map_tiles = HashMap::new();
     ui_world_map_tiles.insert(
-        "desert".to_string(),
+        "barren_land".to_string(),
         ui_tile {
             symbol: ".".to_string(),
+            color: 1,
+        },
+    );
+    ui_world_map_tiles.insert(
+        "rock_desert".to_string(),
+        ui_tile {
+            symbol: "*".to_string(),
+            color: 9,
+        },
+    );
+    ui_world_map_tiles.insert(
+        "salt_desert".to_string(),
+        ui_tile {
+            symbol: "_".to_string(),
+            color: 7,
+        },
+    );
+    ui_world_map_tiles.insert(
+        "ice_desert".to_string(),
+        ui_tile {
+            symbol: "~".to_string(),
+            color: 7,
+        },
+    );
+    ui_world_map_tiles.insert(
+        "ash_desert".to_string(),
+        ui_tile {
+            symbol: "`".to_string(),
+            color: 7,
+        },
+    );
+    ui_world_map_tiles.insert(
+        "dunes".to_string(),
+        ui_tile {
+            symbol: "~".to_string(),
             color: 1,
         },
     );
@@ -272,6 +310,41 @@ pub async fn run() {
         ui_tile {
             symbol: ".".to_string(),
             color: 1,
+        },
+    );
+    ui_tiles.insert(
+        "ice".to_string(),
+        ui_tile {
+            symbol: ".".to_string(),
+            color: 7,
+        },
+    );
+    ui_tiles.insert(
+        "dune_sand".to_string(),
+        ui_tile {
+            symbol: "~".to_string(),
+            color: 1,
+        },
+    );
+    ui_tiles.insert(
+        "ash".to_string(),
+        ui_tile {
+            symbol: "`".to_string(),
+            color: 7,
+        },
+    );
+    ui_tiles.insert(
+        "salt".to_string(),
+        ui_tile {
+            symbol: "_".to_string(),
+            color: 7,
+        },
+    );
+    ui_tiles.insert(
+        "gravel".to_string(),
+        ui_tile {
+            symbol: "*".to_string(),
+            color: 9,
         },
     );
     ui_tiles.insert(
@@ -320,10 +393,10 @@ pub async fn run() {
     let mut current_chunk_entities = Vec::new();
     let mut targetable_entities: HashMap<u64, Entity> = HashMap::new(); 
     if first_loop {
-        for i in 0..4{
+        for i in 0..current_world_properties.world_width{
             current_world_map.push(Vec::new());
-            for j in 0..4{
-                   current_world_map[i].push(load_world_map_tile(client.clone(),j as i32,i as i32).await); 
+            for j in 0..current_world_properties.world_height{
+                   current_world_map[i as usize].push(load_world_map_tile(client.clone(),j as i32,i as i32).await); 
             }
         }
     }
@@ -389,7 +462,7 @@ pub async fn run() {
                             continue;
                         }
                         
-                        window.mv(rel_y + MARGIN, rel_x + MARGIN);
+                        window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
                         let attributes = ColorPair(ui_tiles[&tile.tile_type].color);
                         window.attron(attributes);
                         window.addstr(ui_tiles[&tile.tile_type].symbol.clone()); 
@@ -433,33 +506,33 @@ pub async fn run() {
                 
                 let attributes = ColorPair(ui_hud[hud_element].color);
                 window.attron(attributes);
-                window.mv(i as i32 + MARGIN,j as i32 + MARGIN);
+                window.mv(i as i32 + MARGIN_Y,j as i32 + MARGIN_X);
                 window.addstr(ui_hud[hud_element].symbol.clone()); 
             }
         }
         let attributes = ColorPair(ui_hud["hud_text"].color);
         // abilities 
         window.attron(attributes);
-        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
         window.addstr(format!("{}", username.clone()));
-        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("ABILITIES: "));
-        window.mv(HUD_Y as i32 + 4 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("1. ability"));
-        window.mv(HUD_Y as i32 + 5 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("2. ability"));
-        window.mv(HUD_Y as i32 + 6 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("3. ability"));
-        window.mv(HUD_Y as i32 + 7 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("4. ability"));
-        window.mv(HUD_Y as i32 + 8 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
         window.addstr(format!("5. ability"));
-        window.mv(HUD_Y as i32 + 4 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
         window.addstr(format!("HP: 100"));
-        window.mv(HUD_Y as i32 + 5 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
         window.addstr(format!("ENERGY: 100"));
         // draw target
-        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 32 + MARGIN);
+        window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
         window.addstr(format!("TARGET: {}", target.entity_type));
         /*window.mv(client_player.render_y, client_player.render_x);
         let attributes = ColorPair(ui_entities["ogre"].color);
@@ -470,7 +543,7 @@ pub async fn run() {
             for row in current_world_map.iter() {
                 for w_t in row.iter() {
                     let attributes = ColorPair(ui_world_map_tiles[&w_t.chunk_type].color);
-                    window.mv(w_t.x, w_t.y);
+                    window.mv(w_t.y + MARGIN_Y, w_t.x + MARGIN_X);
                     window.attron(attributes);
                     window.addstr(ui_world_map_tiles[&w_t.chunk_type.clone()].symbol.clone()); 
                 } 
