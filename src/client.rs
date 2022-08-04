@@ -1,6 +1,6 @@
 use std::collections::hash_map::DefaultHasher;
 use crate::entities::{Player};
-use crate::world::{World, Tiles, Entities, WorldProperties, Entity, Tile};
+use crate::world::{World, Tiles, Entities, WorldProperties, Entity, Tile, WorldMapTile, WorldMap};
 use crate::queue::{PostData};
 use rand::Rng;
 use std::{thread, time};
@@ -28,6 +28,11 @@ const SCREEN_WIDTH: u8 = 64;
 const SCREEN_HEIGHT: u8 = 32;
 const EDGE_X: u8 = 8;
 const EDGE_Y: u8 = 8;
+const HUD_X: u8 = 0;
+const HUD_Y: u8 = 32;
+const HUD_WIDTH: u8 = 64;
+const HUD_HEIGHT: u8 = 12;
+const MARGIN: i32 = 1;
 #[derive (Clone)]
 struct ui_tile {
     symbol: String,
@@ -66,6 +71,26 @@ pub fn open_tiles(x:i32,y:i32) -> Tiles {
 }
 pub async fn load_tiles(client: reqwest::Client, x: i32, y: i32) -> Tiles {
     let resp = client.get(format!("http://localhost:8080/tiles/{}/{}", x, y))
+        .send()
+        .await
+        .unwrap();
+    let body = resp.text().await.unwrap();
+
+    let decoded = serde_json::from_str(&body).unwrap(); 
+    return decoded;
+}
+pub async fn load_world_map_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
+    let resp = client.get(format!("http://localhost:8080/world_map/{}/{}", x, y))
+        .send()
+        .await
+        .unwrap();
+    let body = resp.text().await.unwrap();
+
+    let decoded = serde_json::from_str(&body).unwrap(); 
+    return decoded;
+}
+pub async fn load_chunk_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
+    let resp = client.get(format!("http://localhost:8080/world_map/{}/{}", x, y))
         .send()
         .await
         .unwrap();
@@ -147,7 +172,9 @@ pub async fn run() {
     let mut input_change = 0;
     let args: Vec<String> = env::args().collect();
     let render_x = 2;
-    let render_y = 2;
+    let render_y = 1;
+    let target: Entity = Entity::default();
+    let has_target = false;
     let mut compare_time = SystemTime::now();
     let client = reqwest::Client::new();
     let current_world_properties = open_world_properties(client.clone());
@@ -176,7 +203,7 @@ pub async fn run() {
         render_x: 2,
         render_y: 2,
     };
-    if !load_check_if_client_with_id(client.clone(), username, id).await {
+    if !load_check_if_client_with_id(client.clone(), username.clone(), id).await {
         post_to_queue(
             client.clone(),
             PostData {
@@ -205,8 +232,41 @@ pub async fn run() {
     init_pair(2,COLOR_WHITE, COLOR_BLUE);
     init_pair(3,COLOR_WHITE, COLOR_BLACK);
     init_pair(4,COLOR_WHITE, COLOR_GREEN);
+    init_pair(5,COLOR_BLACK, COLOR_BLACK);
+    init_pair(6,COLOR_WHITE, COLOR_WHITE);
+    init_pair(7,COLOR_BLACK, COLOR_WHITE);
     let mut ui_tiles = HashMap::new();
     let mut ui_entities = HashMap::new();
+    let mut ui_hud = HashMap::new();
+    let mut ui_world_map_tiles = HashMap::new();
+    ui_world_map_tiles.insert(
+        "desert".to_string(),
+        ui_tile {
+            symbol: ".".to_string(),
+            color: 1,
+        },
+    );
+    ui_hud.insert(
+        "border".to_string(),
+        ui_tile {
+            symbol: " ".to_string(),
+            color: 6,
+        },
+    );
+    ui_hud.insert(
+        "hud_body".to_string(),
+        ui_tile {
+            symbol: " ".to_string(),
+            color: 5,
+        },
+    );
+    ui_hud.insert(
+        "hud_text".to_string(),
+        ui_tile {
+            symbol: " ".to_string(),
+            color: 3,
+        },
+    );
     ui_tiles.insert(
         "sand".to_string(),
         ui_tile {
@@ -250,11 +310,23 @@ pub async fn run() {
         },
     );
     let mut current_chunk_tiles: Vec<Vec<Tiles>> = Vec::new();
+    let mut current_world_map: Vec<Vec<WorldMapTile>> = Vec::new();
     let mut first_loop = true;
+    let mut target_index = 0;
+    let mut view = "game".to_string();
     while running {
     let mut refresh_tiles = first_loop;
     let mut refresh_entities = true;
     let mut current_chunk_entities = Vec::new();
+    let mut targetable_entities: HashMap<u64, Entity> = HashMap::new(); 
+    if first_loop {
+        for i in 0..4{
+            current_world_map.push(Vec::new());
+            for j in 0..4{
+                   current_world_map[i].push(load_world_map_tile(client.clone(),j as i32,i as i32).await); 
+            }
+        }
+    }
     first_loop = false;
     if refresh_entities {
         for i in 0..render_y*2 {
@@ -276,13 +348,27 @@ pub async fn run() {
                 if c_y > (current_world_properties.world_height- 1) as i32 {
                     c_y = current_world_properties.world_width as i32 - 1;
                 }
-                current_chunk_entities[i].push(load_entities(client.clone(), c_x as i32,c_y as i32).await); 
+                let p_e = load_entities(client.clone(), c_x as i32,c_y as i32).await;
+                current_chunk_entities[i].push(p_e.clone()); 
+                targetable_entities.extend(p_e.entities.clone());
             }
         }
+    }
+    let mut targetable_entities_sorted = Vec::new();
+    for e in targetable_entities.values(){
+        targetable_entities_sorted.push(e);
+    }
+    targetable_entities_sorted.sort_by(|e1,e2| {
+        e1.x.cmp(&e2.x)
+    });
+    let mut target = Entity::default();
+    if targetable_entities_sorted.len() > 0  {
+        target = targetable_entities_sorted[target_index].clone();
     }
     let attributes = ColorPair(3);
     
     window.attron(attributes);
+    window.mv (0,1);
     window.printw("Barren Land\n");
         let delta = SystemTime::now().duration_since(compare_time).unwrap();
         let time = SystemTime::now()
@@ -290,6 +376,9 @@ pub async fn run() {
             .unwrap()
             .as_millis();
         compare_time = SystemTime::now();
+        match view.as_str() {
+        "game" => {    
+        // render tiles
         for tiles_row in current_chunk_tiles.iter() {
             for chunk_tiles in tiles_row.iter() {
                 for row in chunk_tiles.tiles.iter() {
@@ -300,7 +389,7 @@ pub async fn run() {
                             continue;
                         }
                         
-                        window.mv(rel_y, rel_x);
+                        window.mv(rel_y + MARGIN, rel_x + MARGIN);
                         let attributes = ColorPair(ui_tiles[&tile.tile_type].color);
                         window.attron(attributes);
                         window.addstr(ui_tiles[&tile.tile_type].symbol.clone()); 
@@ -308,6 +397,7 @@ pub async fn run() {
                 }
             }
         }
+        // render entities
         for entities_row in current_chunk_entities.iter() {
             for chunk_entities in entities_row.iter() {
 
@@ -325,7 +415,7 @@ pub async fn run() {
                         client_player.x = entity.x;
                         client_player.y = entity.y;
                     }
-                    window.mv(rel_y, rel_x);
+                    window.mv(rel_y + 1, rel_x + 1);
                     let attributes = ColorPair(ui_entities[&entity.entity_type].color);
                     window.attron(attributes);
                     window.addstr(ui_entities[&entity.entity_type].symbol.clone()); 
@@ -333,11 +423,63 @@ pub async fn run() {
                 }
             }
         }
-
+        // draw hud
+        for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
+            for j in HUD_X..(HUD_X + HUD_WIDTH) {
+                let mut hud_element = "border";
+                if !(i == HUD_Y || i == HUD_Y + HUD_HEIGHT - 1 ||j == HUD_X ||j == HUD_X + HUD_WIDTH - 1) {
+                    hud_element = "hud_body";
+                }
+                
+                let attributes = ColorPair(ui_hud[hud_element].color);
+                window.attron(attributes);
+                window.mv(i as i32 + MARGIN,j as i32 + MARGIN);
+                window.addstr(ui_hud[hud_element].symbol.clone()); 
+            }
+        }
+        let attributes = ColorPair(ui_hud["hud_text"].color);
+        // abilities 
+        window.attron(attributes);
+        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.addstr(format!("{}", username.clone()));
+        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("ABILITIES: "));
+        window.mv(HUD_Y as i32 + 4 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("1. ability"));
+        window.mv(HUD_Y as i32 + 5 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("2. ability"));
+        window.mv(HUD_Y as i32 + 6 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("3. ability"));
+        window.mv(HUD_Y as i32 + 7 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("4. ability"));
+        window.mv(HUD_Y as i32 + 8 + MARGIN, HUD_X as i32 + 16 + MARGIN);
+        window.addstr(format!("5. ability"));
+        window.mv(HUD_Y as i32 + 4 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.addstr(format!("HP: 100"));
+        window.mv(HUD_Y as i32 + 5 + MARGIN, HUD_X as i32 + 2 + MARGIN);
+        window.addstr(format!("ENERGY: 100"));
+        // draw target
+        window.mv(HUD_Y as i32 + 2 + MARGIN, HUD_X as i32 + 32 + MARGIN);
+        window.addstr(format!("TARGET: {}", target.entity_type));
         /*window.mv(client_player.render_y, client_player.render_x);
         let attributes = ColorPair(ui_entities["ogre"].color);
         window.attron(attributes);
         window.addstr(ui_entities["ogre"].symbol.clone()); */
+        },
+        "map" => {
+            for row in current_world_map.iter() {
+                for w_t in row.iter() {
+                    let attributes = ColorPair(ui_world_map_tiles[&w_t.chunk_type].color);
+                    window.mv(w_t.x, w_t.y);
+                    window.attron(attributes);
+                    window.addstr(ui_world_map_tiles[&w_t.chunk_type.clone()].symbol.clone()); 
+                } 
+            } 
+        },
+        _ => {
+
+        },
+    }
         match window.getch() {
             Some(Input::Character(c)) => { 
                 //    window.addch(c); 
@@ -355,15 +497,33 @@ pub async fn run() {
                         move_dir = 'd'; 
                     },
                     'm' => {
-                        endless_move_mode = !endless_move_mode;
-                    }
+                        match view.as_str() {
+                            "game" => {
+                            view = "map".to_string();
+                            },
+                            "map" => {
+                            view = "game".to_string();
+                        
+                            },
+                            _ => {}
+
+                        }
+                    },
+                    '\t' => {
+                        target_index += 1;
+                        if target_index > targetable_entities.values().len() - 1 {
+                            target_index = 0;
+                        }
+                    },
                     _ => {}
 
                 }
+                /*window.mv(0,0);
+                window.addstr(&format!("{:?}", c)); 
+            */
             },
             Some(Input::KeyDC) => running = false,
             Some(input) => {
-                //window.addstr(&format!("{:?}", input)); 
             },
             None => ()
         }
@@ -442,51 +602,32 @@ pub async fn run() {
             },
             _ => {}
         }
-       /* if client_player.relative_x < 0{
-            //client_player.chunk_x -= 1;
-            //client_player.relative_x = current_world_properties.chunk_size as i32 - 1;
-            refresh_tiles = true;
-        }
-        else if client_player.relative_y < 0{
-            //client_player.chunk_y -= 1;
-            //client_player.relative_y = current_world_properties.chunk_size as i32 - 1;
-            refresh_tiles = true;
-        }
-        else if client_player.relative_x > current_world_properties.chunk_size as i32 - 1{
-            //client_player.chunk_x += 1;
-            //client_player.relative_x = 0;
-            refresh_tiles = true;
-
-        }
-        else if client_player.relative_y > current_world_properties.chunk_size as i32 - 1{
-            //client_player.chunk_y += 1;
-            //client_player.relative_y = 0;
-            refresh_tiles = true;
-
-        }*/
-        if move_dir == 'd' {
+        match move_dir {
+        'd' => {
         if client_player.relative_x == current_world_properties.chunk_size as i32 {
             client_player.chunk_x += 1;
             refresh_tiles = true;
         }
-        }
-        if move_dir == 's' {
+        },
+         's' => {
         if client_player.relative_y == current_world_properties.chunk_size as i32 {
             client_player.chunk_y += 1;
             refresh_tiles = true;
         }
-        }
-        if move_dir == 'a' {
+        },
+        'a' => {
         if client_player.relative_x == -1 {
             client_player.chunk_x -= 1;
             refresh_tiles = true;
         }
-        }
-        if move_dir == 'w' {
+        },
+        'w' => {
         if client_player.relative_y == -1 { 
             client_player.chunk_y -= 1;
             refresh_tiles = true;
         }
+        },
+        _ => {}
         }
         if !endless_move_mode {
             move_dir = '?';
@@ -519,6 +660,7 @@ pub async fn run() {
         let delta_as_millis = delta.as_millis() as u64;
         input_change += delta_as_millis as u64;
        // window.addstr(format!("{}", input_change));
+        // draw hud
         window.refresh();
         window.erase();
         thread::sleep(time::Duration::from_millis(REFRESH_TIME));

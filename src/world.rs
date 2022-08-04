@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use bincode;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
-use crate::server::{write_client_ids_to_file, ClientIds};
+use crate::server::{open_map_tile_for_chunks_as_struct, write_client_ids_to_file, ClientIds};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tile {
     pub x: i32,
@@ -30,6 +30,29 @@ pub struct Entity {
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub entity_type: String,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorldMapTile {
+    pub x: i32,
+    pub y: i32,
+    pub chunk_type: String,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorldMap {
+    pub chunks: Vec<Vec<WorldMapTile>>,
+}
+impl Default for Entity {
+    fn default() -> Entity {
+        Entity {
+            x: 1,
+            y: 1,
+            relative_x: 1,
+            relative_y: 1,
+            chunk_x: 1,
+            chunk_y: 1,
+            entity_type: "No entity".to_string(),
+        }
+    }
 }
 impl Entity {
     pub fn move_dir(&mut self, dir: String) {
@@ -75,6 +98,7 @@ pub struct Tiles {
     pub tiles: Vec<Vec<Tile>>,
     pub x: i32,
     pub y: i32,
+    pub biome: String,
 }
 impl Default for Tiles {
     fn default() -> Tiles {
@@ -82,10 +106,11 @@ impl Default for Tiles {
             tiles: Vec::new(),
             x: 0,
             y: 0,
+            biome: "No Biome".to_string(),
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Entities {
     pub entities: HashMap<u64, Entity>,
     pub x: i32,
@@ -169,6 +194,7 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
         tiles: tiles,
         x: x,
         y: y,
+        biome: "desert".to_string(),
     };
     let entities = Entities {
         entities: entities,
@@ -196,8 +222,11 @@ pub fn write_world_properties(seed: i32, chunk_size: u32, world_width: u32, worl
     world_properties_file.write_all(&encoded);
 }
 fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32)  {
-    (0..world_width).into_par_iter().for_each(|i| {
-        (0..world_height).into_par_iter().for_each(|j| {
+    let mut world_map = WorldMap {
+        chunks: Vec::new(),
+    };
+    (0..world_height).into_par_iter().for_each(|i| {
+        (0..world_width).into_par_iter().for_each(|j| {
 
             let (generated_tiles, generated_entities) = get_generated_chunk(seed,sealevel,chunk_size,world_width,world_height, j as i32,i as i32);
             let chunk_dir_path = format!("world/chunks/chunk_{}_{}",j,i);
@@ -212,7 +241,19 @@ fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u
             let encoded: Vec<u8> = bincode::serialize(&generated_entities).unwrap();
 
             entities_file.write_all(&encoded);
-
+            write_world_map_to_file(j,i,generated_tiles.biome);
         });
     });
+
+}
+fn write_world_map_to_file(x: u32, y: u32, chunk_type: String) {
+    let mut world_map_file = fs::File::create(format!("world/chunks/chunk_{}_{}/world_map.dat",x,y)).unwrap();
+    let encoded: Vec<u8> = bincode::serialize(&WorldMapTile{
+        x: x as i32,
+        y: y as i32,
+        chunk_type: chunk_type,
+    }).unwrap();
+
+    world_map_file.write_all(&encoded);
+    
 }

@@ -63,6 +63,20 @@ pub fn open_world_properties() -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded; 
 }
+pub fn open_map_tile_for_chunks(x: i32, y: i32) -> String {
+    let path = format!("world/chunks/chunk_{}_{}/world_map.dat",x,y);
+    let body = fs::read(path).unwrap();
+    let decoded: WorldMapTile = bincode::deserialize(&body).unwrap();
+    let encoded = serde_json::to_string(&decoded).unwrap();
+    return encoded; 
+}
+pub fn open_map_tile_for_chunks_as_struct(x: i32, y: i32) -> WorldMapTile {
+    let path = format!("world/chunks/chunk_{}_{}/world_map.dat",x,y);
+    let body = fs::read(path).unwrap();
+    let decoded: WorldMapTile = bincode::deserialize(&body).unwrap();
+    let encoded = serde_json::to_string(&decoded).unwrap();
+    return decoded; 
+}
 pub fn open_client_ids_to_struct() -> ClientIds{
     let path = "world/client_ids.dat";
     let body = fs::read(path).unwrap_or(Vec::new());
@@ -124,6 +138,12 @@ async fn world_properties(_req: HttpRequest) -> impl Responder {
     HttpResponse::Ok()
         .body(contents)
 }
+#[get("/world_map/{x}/{y}")]
+async fn world_map(data: web::Path<ChunkGetData>) -> impl Responder {
+    let contents = open_map_tile_for_chunks(data.x,data.y);
+    HttpResponse::Ok()
+        .body(contents)
+}
 #[get("/client_exists/{username}/{id}")]
 async fn client_exists(data: web::Path<IdQueryData>) -> impl Responder {
     let exists = check_if_client_exists(data.username.clone(),data.id);
@@ -168,6 +188,7 @@ pub async fn main() -> std::io::Result<()> {
             .service(entities)
             .service(post_queue)
             .service(handle_queue)
+            .service(world_map)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
