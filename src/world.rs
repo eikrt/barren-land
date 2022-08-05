@@ -25,6 +25,8 @@ pub struct Tile {
 pub struct Entity {
     pub x: i32,
     pub y: i32,
+    pub hp: i32,
+    pub energy: i32,
     pub id: u64,
     pub name: String,
     pub relative_x: i32,
@@ -53,13 +55,15 @@ impl Default for Entity {
         Entity {
             x: 1,
             y: 1,
+            hp: 100,
+            energy: 100,
             relative_x: 1,
             relative_y: 1,
             chunk_x: 1,
             chunk_y: 1,
-            entity_type: "No entity".to_string(),
+            entity_type: "no entity".to_string(),
             id: 0,
-            name: "No name".to_string(),
+            name: "no name".to_string(),
         }
     }
 }

@@ -9,6 +9,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::prelude::*;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ActionQueue {
@@ -42,6 +43,10 @@ pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
     }
 }
 pub fn execute_action(action: PostData) {
+    let time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
     let mut rng = rand::thread_rng();
     let w_p = open_world_properties_to_struct();
     let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
@@ -52,61 +57,97 @@ pub fn execute_action(action: PostData) {
     let mut add_entity = false;
     let mut chunk_x_to_add = action_chunk_x;
     let mut chunk_y_to_add = action_chunk_y;
-    if action.params["command"] == "spawn" {
-        let action_x: i32 = action.params["x"].parse::<i32>().unwrap();
-        let action_y: i32 = action.params["y"].parse::<i32>().unwrap();
-        let mut entity = Entity {
-            x: w_p.chunk_size as i32 * action_chunk_x + action_x,
-            y: w_p.chunk_size as i32 * action_chunk_y as i32 + action_y,
-            relative_x: action_x,
-            relative_y: action_y,
-            chunk_x: action_chunk_x as i32,
-            chunk_y: action_chunk_y as i32,
-            entity_type: "hero".to_string(),
-            name: action.params["name"].clone(),
-            id: id,
-        };
-        action_entities.entities.insert(id, entity);
-    } else if action.params["command"] == "move" {
-        println!("x: {}, y: {}", action_chunk_x, action_chunk_y);
-        if !action_entities.entities.contains_key(&id) {
-            return;
+    match action.params["command"].as_str() {
+        "spawn" => {
+            let action_x: i32 = action.params["x"].parse::<i32>().unwrap();
+            let action_y: i32 = action.params["y"].parse::<i32>().unwrap();
+            let mut entity = Entity {
+                x: w_p.chunk_size as i32 * action_chunk_x + action_x,
+                y: w_p.chunk_size as i32 * action_chunk_y as i32 + action_y,
+                relative_x: action_x,
+                relative_y: action_y,
+                hp: 100,
+                energy: 100,
+                chunk_x: action_chunk_x as i32,
+                chunk_y: action_chunk_y as i32,
+                entity_type: "hero".to_string(),
+                name: action.params["name"].clone(),
+                id: id,
+            };
+            action_entities.entities.insert(id, entity);
         }
-        let e = action_entities.entities.get_mut(&id).unwrap();
-        e.move_dir(action.params["move_dir"].to_string());
-        if e.relative_x < 0 {
-            remove_entity = true;
-            add_entity = true;
-            chunk_x_to_add = action_chunk_x - 1;
-            e.relative_x = w_p.chunk_size as i32 - 1;
-            e.chunk_x = chunk_x_to_add;
-            update_entity_list(id, e.clone());
+        "move" => {
+            println!("x: {}, y: {}", action_chunk_x, action_chunk_y);
+            if !action_entities.entities.contains_key(&id) {
+                return;
+            }
+            let e = action_entities.entities.get_mut(&id).unwrap();
+            e.move_dir(action.params["move_dir"].to_string());
+            if e.relative_x < 0 {
+                remove_entity = true;
+                add_entity = true;
+                chunk_x_to_add = action_chunk_x - 1;
+                e.relative_x = w_p.chunk_size as i32 - 1;
+                e.chunk_x = chunk_x_to_add;
+                update_entity_list(id, e.clone());
+            }
+            if e.relative_y < 0 {
+                remove_entity = true;
+                add_entity = true;
+                chunk_y_to_add = action_chunk_y - 1;
+                e.relative_y = w_p.chunk_size as i32 - 1;
+                e.chunk_y = chunk_y_to_add;
+                update_entity_list(id, e.clone());
+            }
+            if e.relative_x > w_p.chunk_size as i32 - 1 {
+                remove_entity = true;
+                add_entity = true;
+                chunk_x_to_add = action_chunk_x + 1;
+                e.relative_x = 0;
+                e.chunk_x = chunk_x_to_add;
+                update_entity_list(id, e.clone());
+            }
+            if e.relative_y > w_p.chunk_size as i32 - 1 {
+                remove_entity = true;
+                add_entity = true;
+                chunk_y_to_add = action_chunk_y + 1;
+                e.relative_y = 0;
+                e.chunk_y = chunk_y_to_add;
+                update_entity_list(id, e.clone());
+            }
         }
-        if e.relative_y < 0 {
-            remove_entity = true;
-            add_entity = true;
-            chunk_y_to_add = action_chunk_y - 1;
-            e.relative_y = w_p.chunk_size as i32 - 1;
-            e.chunk_y = chunk_y_to_add;
-            update_entity_list(id, e.clone());
+        "attack" => {
+            if !action_entities.entities.contains_key(&id) {
+                return;
+            }
+            let e = action_entities.entities.get_mut(&id).unwrap();
+            let e_clone = e.clone();
+
+            let target_id = action.params["target_id"].parse::<u64>().unwrap();
+            let mut default_entity = Entity::default();
+            if action_entities.entities.contains_key(&target_id) {
+                let target_entity = action_entities.entities.get_mut(&target_id).unwrap();
+                let dist = ((e_clone.y as f32 - target_entity.y as f32).powf(2.0)
+                    + (e_clone.x as f32 - target_entity.x as f32).powf(2.0))
+                .sqrt();
+                if dist > 2.0 {
+                    return;
+                }
+                match action.params["type"].as_str() {
+                    "auto" => {
+                        let dmg = rng.gen_range(0..10);
+                        target_entity.hp -= dmg;
+                    }
+                    _ => {}
+                };
+                if action_entities.entities.get_mut(&target_id).unwrap().hp < 0 {
+                    action_entities.entities.remove(&target_id);
+                    println!("removed entity by id{}", target_id);
+                }
+            }
         }
-        if e.relative_x > w_p.chunk_size as i32 - 1 {
-            remove_entity = true;
-            add_entity = true;
-            chunk_x_to_add = action_chunk_x + 1;
-            e.relative_x = 0;
-            e.chunk_x = chunk_x_to_add;
-            update_entity_list(id, e.clone());
-        }
-        if e.relative_y > w_p.chunk_size as i32 - 1 {
-            remove_entity = true;
-            add_entity = true;
-            chunk_y_to_add = action_chunk_y + 1;
-            e.relative_y = 0;
-            e.chunk_y = chunk_y_to_add;
-            update_entity_list(id, e.clone());
-        }
-    }
+        _ => {}
+    };
     if add_entity
         && chunk_x_to_add >= 0
         && chunk_x_to_add <= w_p.world_width as i32

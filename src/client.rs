@@ -53,10 +53,15 @@ struct ClientPlayer {
     chunk_y: i32,
     render_x: i32,
     render_y: i32,
+    hp: i32,
+    energy: i32,
 }
 struct Camera {
     x: i32,
     y: i32,
+}
+pub struct Class {
+    pub abilities: HashMap<String,String>
 }
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
@@ -197,8 +202,18 @@ pub async fn run() {
     let mut left = false;
     let mut right = false;
     let mut move_dir = '?';
+    let mut attacking = false;
     let mut endless_move_mode = false;
     let mut input_change = 0;
+    let current_class = Class {
+        abilities: HashMap::from([
+            ("1".to_string(), "slash".to_string()),
+            ("2".to_string(), "poke".to_string()),
+            ("3".to_string(), "tear".to_string()),
+            ("4".to_string(), "kick".to_string()),
+            ("5".to_string(), "maim".to_string()),
+        ])
+    };
     let args: Vec<String> = env::args().collect();
     let render_x = 2;
     let render_y = 1;
@@ -227,6 +242,8 @@ pub async fn run() {
         chunk_y: 0,
         render_x: 2,
         render_y: 2,
+        hp: 100,
+        energy: 100,
     };
     if !load_check_if_client_with_id(
         client.clone(),
@@ -416,6 +433,13 @@ pub async fn run() {
         },
     );
     ui_entities.insert(
+        "no entity".to_string(),
+        ui_tile {
+            symbol: " ".to_string(),
+            color: 3,
+        },
+    );
+    ui_entities.insert(
         "hero".to_string(),
         ui_tile {
             symbol: "@".to_string(),
@@ -436,6 +460,10 @@ pub async fn run() {
         - current_world_properties.chunk_size as i32 / 2;
     camera.y = client_player.chunk_y * current_world_properties.chunk_size as i32
         - current_world_properties.chunk_size as i32 / 4;
+    let mut autoattack_change = 0;
+    let autoattack_time = 1000;
+    let mut special_attack_change = 0;
+    let special_attack_time = 1000;
     while running {
         let mut refresh_tiles = first_loop;
         let mut refresh_entities = true;
@@ -482,9 +510,15 @@ pub async fn run() {
             targetable_entities_sorted.push(e);
         }
         targetable_entities_sorted.sort_by(|e1, e2| e1.x.cmp(&e2.x));
+        targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
         let mut target = Entity::default();
         if targetable_entities_sorted.len() > 0 {
-            target = targetable_entities_sorted[target_index].clone();
+            if target_index > targetable_entities_sorted.len() - 1 {
+                target_index = targetable_entities_sorted.len() - 1;
+            }
+            if targetable_entities_sorted[target_index].clone().id != id {
+                target = targetable_entities_sorted[target_index].clone();
+            }
         }
         let attributes = ColorPair(3);
 
@@ -550,6 +584,8 @@ pub async fn run() {
                                 client_player.relative_y = entity.relative_y;
                                 client_player.x = entity.x;
                                 client_player.y = entity.y;
+                                client_player.hp = entity.hp;
+                                client_player.energy = entity.energy;
                             }
                             window.mv(rel_y + 1, rel_x + 1);
                             let attributes = ColorPair(ui_entities[&entity.entity_type].color);
@@ -584,22 +620,37 @@ pub async fn run() {
                 window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
                 window.addstr(format!("ABILITIES: "));
                 window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("1. ability"));
+                window.addstr(format!("1. {}",current_class.abilities["1"]));
                 window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("2. ability"));
+                window.addstr(format!("2. {}",current_class.abilities["2"]));
                 window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("3. ability"));
+                window.addstr(format!("3. {}",current_class.abilities["3"]));
                 window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("4. ability"));
+                window.addstr(format!("4. {}",current_class.abilities["4"]));
                 window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("5. ability"));
+                window.addstr(format!("5. {}",current_class.abilities["5"]));
                 window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                window.addstr(format!("HP: 100"));
+                window.addstr(format!("HP: {}", client_player.hp));
                 window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                window.addstr(format!("ENERGY: 100"));
+                window.addstr(format!("ENERGY: {}", client_player.energy));
                 // draw target
                 window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!("TARGET: {}", target.entity_type));
+                window.addstr(format!(
+                    "TARGET: {}",
+                    ui_entities[&target.entity_type].symbol
+                ));
+                window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                window.addstr(format!("TARGET TYPE: {}", target.entity_type));
+                window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                window.addstr(format!("TARGET NAME : {}", target.name));
+                window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                window.addstr(format!("TARGET HEALTH: {}", target.hp));
+                window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                window.addstr(format!("TARGET ENERGY: {}", target.energy));
+                if attacking {
+                    window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
+                    window.addstr(format!("/"));
+                }
                 /*window.mv(client_player.render_y, client_player.render_x);
                 let attributes = ColorPair(ui_entities["ogre"].color);
                 window.attron(attributes);
@@ -652,6 +703,24 @@ pub async fn run() {
                             target_index = 0;
                         }
                     }
+                    'c' => {
+                        attacking = !attacking;
+                    },
+                    '1' => {
+                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["1"]).to_string()).await;
+                    },
+                    '2' => {
+                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["2"]).to_string()).await;
+                    },
+                    '3' => {
+                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["3"]).to_string()).await;
+                    },
+                    '4' => {
+                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["4"]).to_string()).await;
+                    },
+                    '5' => {
+                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["5"]).to_string()).await;
+                    },
                     _ => {}
                 }
                 /*window.mv(0,0);
@@ -806,6 +875,14 @@ pub async fn run() {
         }
         let delta_as_millis = delta.as_millis() as u64;
         input_change += delta_as_millis as u64;
+        if attacking {
+            autoattack_change += delta_as_millis;
+            special_attack_change += delta_as_millis;
+            if autoattack_change > autoattack_time {
+                attack(client.clone(), id, client_player.clone(), target.clone(),"auto".to_string(), "".to_string()).await;
+                autoattack_change = 0;
+            }
+        }
         // window.addstr(format!("{}", input_change));
         // draw hud
         window.refresh();
@@ -814,6 +891,36 @@ pub async fn run() {
     }
 
     endwin();
+}
+async fn attack(
+    client: reqwest::Client,
+    id: u64,
+    client_player: ClientPlayer,
+    target: Entity,
+    attack_type: String,
+    ability: String,
+) {
+    post_to_queue(
+        client.clone(),
+        PostData {
+            params: HashMap::from([
+                ("command".to_string(), "attack".to_string()),
+                ("type".to_string(), attack_type),
+                ("ability".to_string(),ability),
+                ("id".to_string(), id.to_string()),
+                ("target_id".to_string(), format!("{}", target.id)),
+                (
+                    "chunk_x".to_string(),
+                    format!("{}", client_player.chunk_x).to_string(),
+                ),
+                (
+                    "chunk_y".to_string(),
+                    format!("{}", client_player.chunk_y).to_string(),
+                ),
+            ]),
+        },
+    )
+    .await;
 }
 async fn move_player(client: reqwest::Client, id: u64, dir: String, client_player: ClientPlayer) {
     match dir.as_str() {
