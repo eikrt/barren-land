@@ -70,6 +70,8 @@ pub fn execute_action(action: PostData) {
             chunk_x: action_chunk_x as i32,
             chunk_y: action_chunk_y as i32,
             entity_type: "hero".to_string(),
+            name: action.params["name"].clone(),
+            id: id,
         };
         action_entities.entities.insert(id, entity);
     }
@@ -86,24 +88,32 @@ pub fn execute_action(action: PostData) {
             add_entity = true;
             chunk_x_to_add = action_chunk_x - 1;
             e.relative_x = w_p.chunk_size as i32 - 1;
+            e.chunk_x = chunk_x_to_add;
+            update_entity_list(id, e.clone());
         }
         if e.relative_y < 0{
             remove_entity = true;
             add_entity = true;
             chunk_y_to_add = action_chunk_y - 1;
             e.relative_y = w_p.chunk_size as i32 - 1;
+            e.chunk_y = chunk_y_to_add;
+            update_entity_list(id, e.clone());
         }
         if e.relative_x > w_p.chunk_size as i32 - 1{
             remove_entity = true;
             add_entity = true;
             chunk_x_to_add = action_chunk_x + 1;
             e.relative_x = 0;
+            e.chunk_x = chunk_x_to_add;
+            update_entity_list(id, e.clone());
         }
         if e.relative_y > w_p.chunk_size as i32 - 1{
             remove_entity = true;
             add_entity = true;
             chunk_y_to_add = action_chunk_y + 1;
             e.relative_y = 0;
+            e.chunk_y = chunk_y_to_add;
+            update_entity_list(id, e.clone());
 
         }
     }
@@ -123,6 +133,19 @@ pub fn execute_action(action: PostData) {
     }
     write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
     
+}
+pub fn update_entity_list(id: u64, entity: Entity) {
+    let mut u_e = open_client_ids_to_struct();
+    match u_e.ids.get_mut(&entity.name) {
+        Some(mut e) => {
+            e.chunk_x = entity.chunk_x;
+            e.chunk_y = entity.chunk_y;
+            write_client_ids_to_file(u_e.clone());
+        },
+        None => {
+
+        }
+    };
 }
 pub fn write_entities_to_file(x: i32, y: i32, write_entities: Entities) {
     let mut entities_file = fs::File::create(format!("world/chunks/chunk_{}_{}/entities.dat",x,y)).unwrap();

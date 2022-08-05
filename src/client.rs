@@ -26,7 +26,7 @@ const REFRESH_TIME: u64 = 10;
 const INPUT_DELAY: u64 = 500;
 const SCREEN_WIDTH: u8 = 64;
 const SCREEN_HEIGHT: u8 = 32;
-const EDGE_X: u8 = 8;
+const EDGE_X: u8 = 16;
 const EDGE_Y: u8 = 8;
 const HUD_X: u8 = 0;
 const HUD_Y: u8 = 32;
@@ -136,13 +136,22 @@ pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
-pub async fn load_check_if_client_with_id(client: reqwest::Client, username: String, id: u64) -> bool{
-    let resp = client.get(format!("http://localhost:8080/client_exists/{}/{}", username, id))
+pub async fn load_check_if_client_with_id(client: reqwest::Client, username: String, id: u64, chunk_x: i32, chunk_y: i32) -> bool{
+    let resp = client.get(format!("http://localhost:8080/client_exists/{}/{}/{}/{}", username, id, chunk_x, chunk_y))
         .send()
         .await
         .unwrap();
     let body = resp.text().await.unwrap();
     let decoded = body.parse().unwrap(); 
+    return decoded;
+}
+pub async fn load_search_entity_clientid(client: reqwest::Client, username: String, id: u64) -> ClientId{
+    let resp = client.get(format!("http://localhost:8080/search_entity/{}", username))
+        .send()
+        .await
+        .unwrap();
+    let body = resp.text().await.unwrap();
+    let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
 pub fn open_world_properties(client: reqwest::Client) -> WorldProperties {
@@ -204,7 +213,7 @@ pub async fn run() {
         render_x: 2,
         render_y: 2,
     };
-    if !load_check_if_client_with_id(client.clone(), username.clone(), id).await {
+    if !load_check_if_client_with_id(client.clone(), username.clone(), id, client_player.chunk_x, client_player.chunk_y).await {
         post_to_queue(
             client.clone(),
             PostData {
@@ -215,6 +224,9 @@ pub async fn run() {
                     ("y".to_string(), format!("{}", client_player.y).to_string()),
                     ("chunk_x".to_string(), format!("{}", client_player.chunk_x).to_string()),
                     ("chunk_y".to_string(), format!("{}", client_player.chunk_y).to_string()),
+                    ("id".to_string(), format!("{}", id).to_string()),
+                    ("name".to_string(), format!("{}", username).to_string()),
+
             ])
             }
         ).await;
@@ -387,6 +399,12 @@ pub async fn run() {
     let mut first_loop = true;
     let mut target_index = 0;
     let mut view = "game".to_string();
+    let mut player_inited = false;
+    let mut server_clientid = load_search_entity_clientid(client.clone(), username.clone(), id).await;
+    client_player.chunk_x = server_clientid.chunk_x;
+    client_player.chunk_y = server_clientid.chunk_y;
+    camera.x = client_player.chunk_x * current_world_properties.chunk_size as i32 - current_world_properties.chunk_size as i32 / 2;
+    camera.y = client_player.chunk_y * current_world_properties.chunk_size as i32 - current_world_properties.chunk_size as i32 / 2;
     while running {
     let mut refresh_tiles = first_loop;
     let mut refresh_entities = true;
@@ -458,7 +476,7 @@ pub async fn run() {
                     for tile in row.iter() {
                         let rel_y = chunk_tiles.y * current_world_properties.chunk_size as i32 + tile.relative_y - camera.y;
                         let rel_x = chunk_tiles.x * current_world_properties.chunk_size as i32 + tile.relative_x - camera.x;
-                        if rel_x < 0 || rel_y < 0 {
+                        if rel_x < 0 || rel_y < 0 ||rel_x > SCREEN_WIDTH as i32 - 1 || rel_y > SCREEN_HEIGHT as i32 - MARGIN_Y{
                             continue;
                         }
                         
@@ -568,6 +586,10 @@ pub async fn run() {
                     },
                     'd' => {
                         move_dir = 'd'; 
+                    },
+
+                    't' => {
+                        endless_move_mode = !endless_move_mode;
                     },
                     'm' => {
                         match view.as_str() {
@@ -727,6 +749,7 @@ pub async fn run() {
                             c_y = current_world_properties.world_width as i32 - 1;
                         }
                         current_chunk_tiles[i].push(load_tiles(client.clone(), c_x as i32,c_y as i32).await); 
+
                     }
                 }
         }

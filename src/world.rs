@@ -25,6 +25,8 @@ pub struct Tile {
 pub struct Entity {
     pub x: i32,
     pub y: i32,
+    pub id: u64,
+    pub name: String,
     pub relative_x: i32,
     pub relative_y: i32,
     pub chunk_x: i32,
@@ -56,6 +58,8 @@ impl Default for Entity {
             chunk_x: 1,
             chunk_y: 1,
             entity_type: "No entity".to_string(),
+            id: 0,
+            name: "No name".to_string(),
         }
     }
 }
@@ -160,39 +164,39 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
         .with_lacunarity(0.8)
         .generate_scaled(0.0, 512.0);
     let biome_noise_1 = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
-        .with_freq(1.0)
+        .with_freq(0.05)
         .with_octaves(3.0 as u8)
-        .with_gain(4.0)
+        .with_gain(1.0)
         .with_seed(seed * 4)
-        .with_lacunarity(0.8)
+        .with_lacunarity(0.2)
         .generate_scaled(0.0, 512.0);
     let biome_noise_2 = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
-        .with_freq(1.0)
+        .with_freq(0.05)
         .with_octaves(4.0 as u8)
-        .with_gain(4.0)
+        .with_gain(1.0)
         .with_seed(seed * 5)
-        .with_lacunarity(0.8)
+        .with_lacunarity(0.2)
         .generate_scaled(0.0, 512.0);
     let biome_noise_3 = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
-        .with_freq(1.0)
+        .with_freq(0.05)
         .with_octaves(5.0 as u8)
-        .with_gain(4.0)
+        .with_gain(1.0)
         .with_seed(seed * 6)
-        .with_lacunarity(0.8)
+        .with_lacunarity(0.2)
         .generate_scaled(0.0, 512.0);
     let biome_noise_4 = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
-        .with_freq(1.0)
+        .with_freq(0.05)
         .with_octaves(6.0 as u8)
-        .with_gain(4.0)
+        .with_gain(1.0)
         .with_seed(seed * 7)
-        .with_lacunarity(0.8)
+        .with_lacunarity(0.2)
         .generate_scaled(0.0, 512.0);
     let biome_noise_5 = NoiseBuilder::fbm_2d((chunk_size * world_width).try_into().unwrap(), (chunk_size * world_height).try_into().unwrap())
-        .with_freq(1.0)
+        .with_freq(0.05)
         .with_octaves(7.0 as u8)
-        .with_gain(4.0)
+        .with_gain(1.0)
         .with_seed(seed * 8)
-        .with_lacunarity(0.8)
+        .with_lacunarity(0.2)
         .generate_scaled(0.0, 512.0);
     let world_perlin_coord = (x + y * world_width as i32) as usize;
     let biome_threshold = 256.0;
@@ -237,7 +241,7 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
                 biome = "rock_desert".to_string();    
             }
             *biome_counts.get_mut(&biome).unwrap() += 1;
-            if tile.h < sealevel {
+            if true { //tile.h < sealevel {
                 match biome.as_str() {
                     "dunes" => {
                         tile.tile_type = "dune_sand".to_string()
@@ -268,7 +272,7 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
                     }    
                 };
             }
-            let mut entity = Entity {
+           /* let mut entity = Entity {
                 x: tile_x,
                 y: tile_y,
                 relative_x: j as i32,
@@ -276,8 +280,9 @@ fn get_generated_chunk(seed: i32, sealevel: f32,chunk_size: u32, world_width: u3
                 chunk_x: x,
                 chunk_y: y,
                 entity_type: "ogre".to_string(),
+                
             };
-            
+            */
             tiles[i as usize].push(tile);
             if npc_noise[perlin_coord] < 300.0 {
                 let id: u32 = rng.gen::<u32>(); 

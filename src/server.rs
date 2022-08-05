@@ -19,10 +19,33 @@ struct ChunkGetData {
 pub struct IdQueryData {
     id: u64,
     username: String,
+    chunk_x: i32,
+    chunk_y: i32,
 }
 #[derive(Serialize, Deserialize)]
+pub struct EntityListQueryData {
+    username: String,
+}
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ClientId {
+    pub id: u64,
+    pub username: String,
+    pub chunk_x: i32,
+    pub chunk_y: i32,
+}
+impl Default for ClientId {
+    fn default() -> ClientId {
+        ClientId {
+            id: 0,
+            username: "Default username".to_string(),
+            chunk_x: 0,
+            chunk_y: 0,
+        }
+    }
+}
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ClientIds{
-    ids: HashMap<String, u64>,
+    pub ids: HashMap<String, ClientId>,
 }
 impl Default for ClientIds {
     fn default() -> ClientIds {
@@ -91,11 +114,17 @@ pub fn open_client_ids() -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded; 
 }
-pub fn add_client_id(username: String, id: u64) {
+pub fn add_client_id(username: String, id: u64, chunk_x: i32, chunk_y: i32) {
     let mut client_ids = open_client_ids_to_struct();
     client_ids.ids.insert(
         username.clone(),
-        id
+        ClientId{
+            username: username,
+            id: id,
+            chunk_x: chunk_x,
+            chunk_y: chunk_y,
+        }
+
     );
     write_client_ids_to_file(client_ids);
 }
@@ -104,6 +133,14 @@ pub fn open_world_properties_to_struct() -> WorldProperties {
     let decoded = serde_json::from_str(&body).unwrap(); 
     return decoded;
 }
+pub fn search_entity_by_username_as_string(username: String) -> String {
+    let client_ids = open_client_ids_to_struct();
+    let default_clientid = ClientId::default();
+    let body = client_ids.ids.get(&username).unwrap_or(&default_clientid);
+    let encoded = serde_json::to_string(&body).unwrap(); 
+    println!("{}", encoded);
+    return encoded;
+} 
 
 pub fn write_client_ids_to_file(client_ids: ClientIds) {
     let mut ids_file = fs::File::create(format!("world/client_ids.dat")).unwrap();
@@ -144,13 +181,19 @@ async fn world_map(data: web::Path<ChunkGetData>) -> impl Responder {
     HttpResponse::Ok()
         .body(contents)
 }
-#[get("/client_exists/{username}/{id}")]
+#[get("/client_exists/{username}/{id}/{chunk_x}/{chunk_y}")]
 async fn client_exists(data: web::Path<IdQueryData>) -> impl Responder {
     let exists = check_if_client_exists(data.username.clone(),data.id);
     let contents = format!("{}", exists);
     if !exists {
-        add_client_id(data.username.clone(), data.id);
+        add_client_id(data.username.clone(), data.id,data.chunk_x,data.chunk_y);
     } 
+    HttpResponse::Ok()
+        .body(contents)
+}
+#[get("/search_entity/{username}")]
+async fn search_entity(data: web::Path<EntityListQueryData>) -> impl Responder {
+    let mut contents = search_entity_by_username_as_string(data.username.clone());
     HttpResponse::Ok()
         .body(contents)
 }
@@ -189,6 +232,7 @@ pub async fn main() -> std::io::Result<()> {
             .service(post_queue)
             .service(handle_queue)
             .service(world_map)
+            .service(search_entity)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
