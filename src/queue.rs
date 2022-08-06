@@ -68,12 +68,19 @@ pub fn execute_action(action: PostData) {
                 relative_y: action_y,
                 hp: 100,
                 energy: 100,
+                experience: 0,
+                level: 1,
                 chunk_x: action_chunk_x as i32,
                 chunk_y: action_chunk_y as i32,
-                entity_type: "hero".to_string(),
+                entity_type: "gatherer".to_string(),
                 name: action.params["name"].clone(),
                 id: id,
+                stats: CharacterStats::gatherer(),
             };
+            *entity.stats.abilities.get_mut("2").unwrap() = "LEVEL 2".to_string();
+            *entity.stats.abilities.get_mut("3").unwrap() = "LEVEL 3".to_string();
+            *entity.stats.abilities.get_mut("4").unwrap() = "LEVEL 4".to_string();
+            *entity.stats.abilities.get_mut("5").unwrap() = "LEVEL 5".to_string();
             action_entities.entities.insert(id, entity);
         }
         "move" => {
@@ -135,6 +142,18 @@ pub fn execute_action(action: PostData) {
                 }
                 match action.params["type"].as_str() {
                     "auto" => {
+                        let dmg = rng.gen_range(1..10);
+                        target_entity.hp -= dmg;
+                    }
+                    "special" => {
+                        match action.params["ability"].as_str() {
+                            "double kick" => {
+                                let dmg = rng.gen_range(5..20);
+                                target_entity.hp -= dmg;
+                                
+                            },
+                            _ => {}
+                        };
                         let dmg = rng.gen_range(0..10);
                         target_entity.hp -= dmg;
                     }
@@ -154,8 +173,6 @@ pub fn execute_action(action: PostData) {
         && chunk_y_to_add >= 0
         && chunk_y_to_add <= w_p.world_height as i32
     {
-        println!("x: {}, y: {}", chunk_x_to_add, chunk_y_to_add);
-        println!("entity added");
         let mut add_entities =
             open_entities_as_struct(chunk_x_to_add as i32, chunk_y_to_add as i32);
         let e = action_entities.entities.get(&id).unwrap();

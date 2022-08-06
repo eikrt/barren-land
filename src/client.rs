@@ -1,7 +1,9 @@
 use crate::client_utils::*;
 use crate::entities::Player;
 use crate::queue::PostData;
-use crate::world::{Entities, Entity, Tile, Tiles, World, WorldMap, WorldMapTile, WorldProperties};
+use crate::world::{
+    CharacterStats, Entities, Entity, Tile, Tiles, World, WorldMap, WorldMapTile, WorldProperties,
+};
 use bincode;
 use once_cell::sync::Lazy;
 use pancurses::colorpair::ColorPair;
@@ -54,19 +56,19 @@ pub struct ClientPlayer {
     chunk_y: i32,
     render_x: i32,
     render_y: i32,
+    level: i32,
+    experience: i32,
     hp: i32,
     energy: i32,
     autoattack_change: u64,
     autoattack_time: u64,
     special_attack_change: u64,
     special_attack_time: u64,
+    stats: CharacterStats,
 }
 pub struct Camera {
     x: i32,
     y: i32,
-}
-pub struct Class {
-    pub abilities: HashMap<String, String>,
 }
 pub struct Client {
     pub running: bool,
@@ -74,7 +76,6 @@ pub struct Client {
     pub attacking: bool,
     pub endless_move_mode: bool,
     pub input_change: u64,
-    pub current_class: Class,
     pub render_x: i32,
     pub render_y: i32,
     pub target: Entity,
@@ -107,15 +108,6 @@ impl Default for Client {
             attacking: false,
             endless_move_mode: false,
             input_change: 0,
-            current_class: Class {
-                abilities: HashMap::from([
-                    ("1".to_string(), "slash".to_string()),
-                    ("2".to_string(), "poke".to_string()),
-                    ("3".to_string(), "tear".to_string()),
-                    ("4".to_string(), "kick".to_string()),
-                    ("5".to_string(), "maim".to_string()),
-                ]),
-            },
             render_x: 2,
             render_y: 1,
             target: Entity::default(),
@@ -133,10 +125,13 @@ impl Default for Client {
                 render_y: 2,
                 hp: 100,
                 energy: 100,
+                experience: 0,
+                level: 1,
                 autoattack_time: 1000,
                 autoattack_change: 0,
                 special_attack_time: 1000,
                 special_attack_change: 1000,
+                stats: CharacterStats::default(),
             },
             ui_world_map_tiles: HashMap::from([
                 (
@@ -286,9 +281,9 @@ impl Default for Client {
                     },
                 ),
                 (
-                    "hero".to_string(),
+                    "gatherer".to_string(),
                     ui_tile {
-                        symbol: "@".to_string(),
+                        symbol: "g".to_string(),
                         color: 3,
                     },
                 ),
@@ -423,15 +418,6 @@ impl Client {
             }
             targetable_entities_sorted.sort_by(|e1, e2| e1.x.cmp(&e2.x));
             targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
-            let mut target = Entity::default();
-            if targetable_entities_sorted.len() > 0 {
-                if self.target_index > targetable_entities_sorted.len() - 1 {
-                    self.target_index = targetable_entities_sorted.len() - 1;
-                }
-                if targetable_entities_sorted[self.target_index].clone().id != id {
-                    target = targetable_entities_sorted[self.target_index].clone();
-                }
-            }
             let attributes = ColorPair(3);
 
             window.attron(attributes);
@@ -498,9 +484,13 @@ impl Client {
                                     self.client_player.x = entity.x;
                                     self.client_player.y = entity.y;
                                     self.client_player.hp = entity.hp;
+                                    self.client_player.level = entity.level;
+                                    self.client_player.experience = entity.experience;
                                     self.client_player.energy = entity.energy;
+                                    self.client_player.stats = entity.stats.clone();
                                 }
-                                window.mv(rel_y + 1, rel_x + 1);
+                                window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
+
                                 let attributes =
                                     ColorPair(self.ui_entities[&entity.entity_type].color);
                                 window.attron(attributes);
@@ -534,33 +524,37 @@ impl Client {
                     window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
                     window.addstr(format!("ABILITIES: "));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("1. {}", self.current_class.abilities["1"]));
+                    window.addstr(format!("1. {}", self.client_player.stats.abilities["1"]));
                     window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("2. {}", self.current_class.abilities["2"]));
+                    window.addstr(format!("2. {}", self.client_player.stats.abilities["2"]));
                     window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("3. {}", self.current_class.abilities["3"]));
+                    window.addstr(format!("3. {}", self.client_player.stats.abilities["3"]));
                     window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("4. {}", self.current_class.abilities["4"]));
+                    window.addstr(format!("4. {}", self.client_player.stats.abilities["4"]));
                     window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("5. {}", self.current_class.abilities["5"]));
+                    window.addstr(format!("5. {}", self.client_player.stats.abilities["5"]));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
                     window.addstr(format!("HP: {}", self.client_player.hp));
                     window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
                     window.addstr(format!("ENERGY: {}", self.client_player.energy));
+                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
+                    window.addstr(format!("LEVEL: {}", self.client_player.level));
+                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
+                    window.addstr(format!("EXPERIENCE: {}", self.client_player.experience));
                     // draw target
                     window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!(
                         "TARGET: {}",
-                        self.ui_entities[&target.entity_type].symbol
+                        self.ui_entities[&self.target.entity_type].symbol
                     ));
                     window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET TYPE: {}", target.entity_type));
+                    window.addstr(format!("TARGET TYPE: {}", self.target.entity_type));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET NAME : {}", target.name));
+                    window.addstr(format!("TARGET NAME : {}", self.target.name));
                     window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET HEALTH: {}", target.hp));
+                    window.addstr(format!("TARGET HEALTH: {}", self.target.hp));
                     window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET ENERGY: {}", target.energy));
+                    window.addstr(format!("TARGET ENERGY: {}", self.target.energy));
                     if self.attacking {
                         window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
                         window.addstr(format!("/"));
@@ -621,6 +615,16 @@ impl Client {
                             if self.target_index > targetable_entities.values().len() - 1 {
                                 self.target_index = 0;
                             }
+
+                            if targetable_entities_sorted.len() > 0 {
+                                if self.target_index > targetable_entities_sorted.len() - 1 {
+                                    self.target_index = targetable_entities_sorted.len() - 1;
+                                }
+                                if targetable_entities_sorted[self.target_index].clone().id != id {
+                                    self.target =
+                                        targetable_entities_sorted[self.target_index].clone();
+                                }
+                            }
                         }
                         'c' => {
                             self.attacking = !self.attacking;
@@ -630,9 +634,9 @@ impl Client {
                                 client.clone(),
                                 id,
                                 self.client_player.clone(),
-                                target.clone(),
+                                self.target.clone(),
                                 "special".to_string(),
-                                format!("{}", self.current_class.abilities["1"]).to_string(),
+                                format!("{}", self.client_player.stats.abilities["1"]).to_string(),
                             )
                             .await;
                         }
@@ -641,9 +645,9 @@ impl Client {
                                 client.clone(),
                                 id,
                                 self.client_player.clone(),
-                                target.clone(),
+                                self.target.clone(),
                                 "special".to_string(),
-                                format!("{}", self.current_class.abilities["2"]).to_string(),
+                                format!("{}", self.client_player.stats.abilities["2"]).to_string(),
                             )
                             .await;
                         }
@@ -652,9 +656,9 @@ impl Client {
                                 client.clone(),
                                 id,
                                 self.client_player.clone(),
-                                target.clone(),
+                                self.target.clone(),
                                 "special".to_string(),
-                                format!("{}", self.current_class.abilities["3"]).to_string(),
+                                format!("{}", self.client_player.stats.abilities["3"]).to_string(),
                             )
                             .await;
                         }
@@ -663,9 +667,9 @@ impl Client {
                                 client.clone(),
                                 id,
                                 self.client_player.clone(),
-                                target.clone(),
+                                self.target.clone(),
                                 "special".to_string(),
-                                format!("{}", self.current_class.abilities["4"]).to_string(),
+                                format!("{}", self.client_player.stats.abilities["4"]).to_string(),
                             )
                             .await;
                         }
@@ -674,9 +678,9 @@ impl Client {
                                 client.clone(),
                                 id,
                                 self.client_player.clone(),
-                                target.clone(),
+                                self.target.clone(),
                                 "special".to_string(),
-                                format!("{}", self.current_class.abilities["5"]).to_string(),
+                                format!("{}", self.client_player.stats.abilities["5"]).to_string(),
                             )
                             .await;
                         }
@@ -813,6 +817,12 @@ impl Client {
                 }
                 _ => {}
             }
+
+            if targetable_entities_sorted.len() > 0 {
+                if targetable_entities_sorted[self.target_index].clone().id != id {
+                    self.target = targetable_entities_sorted[self.target_index].clone();
+                }
+            }
             if !self.endless_move_mode {
                 self.move_dir = '?';
             }
@@ -852,7 +862,7 @@ impl Client {
                         client.clone(),
                         id,
                         self.client_player.clone(),
-                        target.clone(),
+                        self.target.clone(),
                         "auto".to_string(),
                         "".to_string(),
                     )

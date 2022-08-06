@@ -27,6 +27,8 @@ pub struct Entity {
     pub y: i32,
     pub hp: i32,
     pub energy: i32,
+    pub experience: i32,
+    pub level: i32,
     pub id: u64,
     pub name: String,
     pub relative_x: i32,
@@ -34,6 +36,184 @@ pub struct Entity {
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub entity_type: String,
+    pub stats: CharacterStats,
+}
+impl Default for Entity {
+    fn default() -> Entity {
+        Entity {
+            x: 1,
+            y: 1,
+            hp: 100,
+            energy: 100,
+            experience: 0,
+            level: 1,
+            relative_x: 1,
+            relative_y: 1,
+            chunk_x: 1,
+            chunk_y: 1,
+            entity_type: "no entity".to_string(),
+            id: 0,
+            name: "no name".to_string(),
+            stats: CharacterStats::default(),
+        }
+    }
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CharacterStats {
+    pub abilities: HashMap<String, String>,
+    pub stats: HashMap<String, u8>,
+    pub creature_type: String,
+}
+impl Default for CharacterStats{
+    fn default() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Gatherer {
+    fn gatherer() -> CharacterStats;
+}
+impl Gatherer for CharacterStats {
+    fn gatherer() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"double kick".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Bard{
+    fn bard() -> CharacterStats;
+}
+impl Bard for CharacterStats {
+    fn bard() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Hunter{
+    fn hunter() -> CharacterStats;
+}
+impl Hunter for CharacterStats {
+    fn hunter() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Farmer{
+    fn farmer() -> CharacterStats;
+}
+impl Farmer for CharacterStats {
+    fn farmer() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Fisher {
+    fn fisher() -> CharacterStats;
+}
+impl Fisher for CharacterStats {
+    fn fisher() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
+}
+pub trait Sentinel {
+    fn sentinel() -> CharacterStats;
+}
+impl Sentinel for CharacterStats {
+    fn sentinel() -> CharacterStats{
+        CharacterStats{
+            abilities: HashMap::from([
+                ("1".to_string(),"".to_string()),
+                ("2".to_string(),"".to_string()),
+                ("3".to_string(),"".to_string()),
+                ("4".to_string(),"".to_string()),
+                ("5".to_string(),"".to_string()),
+            ]),
+            stats: HashMap::from([
+                ("str".to_string(),5),
+                ("agi".to_string(),5),
+                ("int".to_string(),5),
+            ]),
+            creature_type: "".to_string(),
+        }
+    }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorldMapTile {
@@ -49,23 +229,6 @@ pub struct Biome {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorldMap {
     pub chunks: Vec<Vec<WorldMapTile>>,
-}
-impl Default for Entity {
-    fn default() -> Entity {
-        Entity {
-            x: 1,
-            y: 1,
-            hp: 100,
-            energy: 100,
-            relative_x: 1,
-            relative_y: 1,
-            chunk_x: 1,
-            chunk_y: 1,
-            entity_type: "no entity".to_string(),
-            id: 0,
-            name: "no name".to_string(),
-        }
-    }
 }
 impl Entity {
     pub fn move_dir(&mut self, dir: String) {
