@@ -93,6 +93,8 @@ pub struct Client {
     pub player_inited: bool,
     pub client_player: ClientPlayer,
     pub current_world_properties: WorldProperties,
+    pub standing_tile: Tile,
+    pub standing_entity: Entity,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -114,6 +116,9 @@ impl Default for Client {
             has_target: false,
             camera: Camera { x: 0, y: 0 },
             current_world_properties: WorldProperties::default(),
+            standing_tile: Tile::default(),
+            standing_entity: Entity::default(),
+
             client_player: ClientPlayer {
                 x: 2,
                 y: 2,
@@ -226,7 +231,7 @@ impl Default for Client {
                     "ash".to_string(),
                     ui_tile {
                         symbol: "`".to_string(),
-                        color: 7,
+                        color: 9,
                     },
                 ),
                 (
@@ -271,6 +276,13 @@ impl Default for Client {
                     ui_tile {
                         symbol: "O".to_string(),
                         color: 3,
+                    },
+                ),
+                (
+                    "scarab".to_string(),
+                    ui_tile {
+                        symbol: "S".to_string(),
+                        color: 9,
                     },
                 ),
                 (
@@ -429,6 +441,7 @@ impl Client {
                 .unwrap()
                 .as_millis();
             compare_time = SystemTime::now();
+            self.standing_tile = Tile::default();
             match self.view.as_str() {
                 "game" => {
                     // render tiles
@@ -451,6 +464,11 @@ impl Client {
                                     {
                                         continue;
                                     }
+                                    if self.client_player.x == tile.x
+                                        && self.client_player.y == tile.y
+                                    {
+                                        self.standing_tile = tile.clone();
+                                    }
 
                                     window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
                                     let attributes =
@@ -462,6 +480,7 @@ impl Client {
                         }
                     }
                     // render entities
+                    self.standing_entity = Entity::default();
                     for entities_row in current_chunk_entities.iter() {
                         for chunk_entities in entities_row.iter() {
                             for (e_id, entity) in chunk_entities.entities.iter() {
@@ -488,6 +507,10 @@ impl Client {
                                     self.client_player.experience = entity.experience;
                                     self.client_player.energy = entity.energy;
                                     self.client_player.stats = entity.stats.clone();
+                                } else if self.client_player.x == entity.x
+                                    && self.client_player.y == entity.y
+                                {
+                                    self.standing_entity = entity.clone();
                                 }
                                 window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
 
@@ -547,6 +570,16 @@ impl Client {
                         "TARGET: {}",
                         self.ui_entities[&self.target.entity_type].symbol
                     ));
+                    window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 1);
+                    window.addstr(format!(
+                        "TILE: {}",
+                        self.standing_tile.tile_type
+                    ));
+                    window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 18);
+                    window.addstr(format!(
+                        "ENTITY: {}",
+                        self.standing_entity.entity_type
+                    ));
                     window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!("TARGET TYPE: {}", self.target.entity_type));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
@@ -555,6 +588,8 @@ impl Client {
                     window.addstr(format!("TARGET HEALTH: {}", self.target.hp));
                     window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!("TARGET ENERGY: {}", self.target.energy));
+                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!("TARGET LEVEL: {}", self.target.level));
                     if self.attacking {
                         window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
                         window.addstr(format!("/"));
@@ -630,59 +665,79 @@ impl Client {
                             self.attacking = !self.attacking;
                         }
                         '1' => {
-                            attack(
-                                client.clone(),
-                                id,
-                                self.client_player.clone(),
-                                self.target.clone(),
-                                "special".to_string(),
-                                format!("{}", self.client_player.stats.abilities["1"]).to_string(),
-                            )
-                            .await;
+                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                                attack(
+                                    client.clone(),
+                                    id,
+                                    self.client_player.clone(),
+                                    self.target.clone(),
+                                    "special".to_string(),
+                                    format!("{}", self.client_player.stats.abilities["1"])
+                                        .to_string(),
+                                )
+                                .await;
+                                self.client_player.special_attack_change = 0;
+                            }
                         }
                         '2' => {
-                            attack(
-                                client.clone(),
-                                id,
-                                self.client_player.clone(),
-                                self.target.clone(),
-                                "special".to_string(),
-                                format!("{}", self.client_player.stats.abilities["2"]).to_string(),
-                            )
-                            .await;
+                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                                attack(
+                                    client.clone(),
+                                    id,
+                                    self.client_player.clone(),
+                                    self.target.clone(),
+                                    "special".to_string(),
+                                    format!("{}", self.client_player.stats.abilities["2"])
+                                        .to_string(),
+                                )
+                                .await;
+                                self.client_player.special_attack_change = 0;
+                            }
                         }
                         '3' => {
-                            attack(
-                                client.clone(),
-                                id,
-                                self.client_player.clone(),
-                                self.target.clone(),
-                                "special".to_string(),
-                                format!("{}", self.client_player.stats.abilities["3"]).to_string(),
-                            )
-                            .await;
+                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                                attack(
+                                    client.clone(),
+                                    id,
+                                    self.client_player.clone(),
+                                    self.target.clone(),
+                                    "special".to_string(),
+                                    format!("{}", self.client_player.stats.abilities["3"])
+                                        .to_string(),
+                                )
+                                .await;
+                                self.client_player.special_attack_change = 0;
+                            }
                         }
                         '4' => {
-                            attack(
-                                client.clone(),
-                                id,
-                                self.client_player.clone(),
-                                self.target.clone(),
-                                "special".to_string(),
-                                format!("{}", self.client_player.stats.abilities["4"]).to_string(),
-                            )
-                            .await;
+                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                                attack(
+                                    client.clone(),
+                                    id,
+                                    self.client_player.clone(),
+                                    self.target.clone(),
+                                    "special".to_string(),
+                                    format!("{}", self.client_player.stats.abilities["4"])
+                                        .to_string(),
+                                )
+                                .await;
+                                self.client_player.special_attack_change = 0;
+                            }
                         }
                         '5' => {
-                            attack(
-                                client.clone(),
-                                id,
-                                self.client_player.clone(),
-                                self.target.clone(),
-                                "special".to_string(),
-                                format!("{}", self.client_player.stats.abilities["5"]).to_string(),
-                            )
-                            .await;
+                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                                attack(
+                                    client.clone(),
+                                    id,
+                                    self.client_player.clone(),
+                                    self.target.clone(),
+                                    "special".to_string(),
+                                    format!("{}", self.client_player.stats.abilities["5"])
+                                        .to_string(),
+                                )
+                                .await;
+                                self.client_player.special_attack_change = 0;
+                            }
                         }
                         _ => {}
                     }

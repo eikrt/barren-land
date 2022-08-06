@@ -10,7 +10,7 @@ use std::env;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Tile {
     pub x: i32,
     pub y: i32,
@@ -20,6 +20,20 @@ pub struct Tile {
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub tile_type: String,
+}
+impl Default for Tile {
+    fn default() -> Tile {
+        Tile {
+            x: 1,
+            y: 1,
+            h: 1.0,
+            relative_x: 1,
+            relative_y: 1,
+            chunk_x: 1,
+            chunk_y: 1,
+            tile_type: "sand".to_string()
+        }
+    }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Entity {
@@ -54,6 +68,29 @@ impl Default for Entity {
             entity_type: "no entity".to_string(),
             id: 0,
             name: "no name".to_string(),
+            stats: CharacterStats::default(),
+        }
+    }
+}
+pub trait Scarab {
+    fn scarab(x: i32, y: i32, relative_x: i32, relative_y: i32, chunk_x: i32, chunk_y: i32, id: u64, entity_type: String, name: String) -> Entity;
+}
+impl Scarab for Entity {
+    fn scarab(x: i32, y: i32, relative_x: i32, relative_y: i32, chunk_x: i32, chunk_y: i32, id: u64, entity_type: String, name: String) -> Entity {
+        Entity {
+            x: x,
+            y: y,
+            hp: 100,
+            energy: 100,
+            experience: 0,
+            level: 1,
+            relative_x: relative_x,
+            relative_y: relative_y,
+            chunk_x: chunk_x,
+            chunk_y: chunk_y,
+            entity_type: entity_type,
+            id: 0,
+            name: name,
             stats: CharacterStats::default(),
         }
     }
@@ -442,10 +479,17 @@ fn get_generated_chunk(
                 biome = "rock_desert".to_string();
             }
             *biome_counts.get_mut(&biome).unwrap() += 1;
+            let id: u64 = rng.gen::<u64>();
             if true {
                 //tile.h < sealevel {
                 match biome.as_str() {
-                    "dunes" => tile.tile_type = "dune_sand".to_string(),
+                    "dunes" => {
+                        tile.tile_type = "dune_sand".to_string();
+                        let biome_entity = Entity::scarab(tile_x, tile_y, j as i32, i as i32, x, y, id, "scarab".to_string(), "scarab".to_string());
+                        if rng.gen_range(0..32) == 1 {
+                            entities.insert(id, biome_entity);
+                        }
+                    },
                     "ash_desert" => tile.tile_type = "ash".to_string(),
                     "salt_desert" => tile.tile_type = "salt".to_string(),
                     "ice_desert" => tile.tile_type = "ice".to_string(),
