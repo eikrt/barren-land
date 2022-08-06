@@ -89,7 +89,7 @@ impl Scarab for Entity {
             chunk_x: chunk_x,
             chunk_y: chunk_y,
             entity_type: entity_type,
-            id: 0,
+            id: id,
             name: name,
             stats: CharacterStats::default(),
         }

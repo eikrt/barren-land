@@ -444,7 +444,7 @@ impl Client {
             self.standing_tile = Tile::default();
             match self.view.as_str() {
                 "game" => {
-                    // render tiles
+                    // draw tiles
                     for tiles_row in self.current_chunk_tiles.iter() {
                         for chunk_tiles in tiles_row.iter() {
                             for row in chunk_tiles.tiles.iter() {
@@ -479,7 +479,7 @@ impl Client {
                             }
                         }
                     }
-                    // render entities
+                    // draw entities
                     self.standing_entity = Entity::default();
                     for entities_row in current_chunk_entities.iter() {
                         for chunk_entities in entities_row.iter() {
@@ -492,7 +492,11 @@ impl Client {
                                     * self.current_world_properties.chunk_size as i32
                                     + entity.relative_x
                                     - self.camera.x;
-                                if rel_x < 0 || rel_y < 0 {
+                                if rel_x < 0
+                                    || rel_y < 0
+                                    || rel_x > SCREEN_WIDTH as i32 - 1
+                                    || rel_y > SCREEN_HEIGHT as i32 - MARGIN_Y
+                                {
                                     continue;
                                 }
                                 if e_id == &id {
@@ -512,6 +516,9 @@ impl Client {
                                 {
                                     self.standing_entity = entity.clone();
                                 }
+                                if e_id == &(self.target.id) {
+                                    continue;
+                                }
                                 window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
 
                                 let attributes =
@@ -521,6 +528,23 @@ impl Client {
                             }
                         }
                     }
+                    let rel_y = self.target.chunk_y
+                        * self.current_world_properties.chunk_size as i32
+                        + self.target.relative_y
+                        - self.camera.y
+                        + MARGIN_Y;
+                    let rel_x = self.target.chunk_x
+                        * self.current_world_properties.chunk_size as i32
+                        + self.target.relative_x
+                        - self.camera.x
+                        + MARGIN_X;
+                    let mut attributes = Attributes::new();
+                    attributes.set_blink(true);
+                    window.attron(attributes);
+                    window.mv(rel_y, rel_x);
+                    window.addch('X');
+                    attributes.set_blink(false);
+                    window.attrset(attributes);
                     // draw hud
                     for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
                         for j in HUD_X..(HUD_X + HUD_WIDTH) {
@@ -571,15 +595,9 @@ impl Client {
                         self.ui_entities[&self.target.entity_type].symbol
                     ));
                     window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 1);
-                    window.addstr(format!(
-                        "TILE: {}",
-                        self.standing_tile.tile_type
-                    ));
+                    window.addstr(format!("TILE: {}", self.standing_tile.tile_type));
                     window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 18);
-                    window.addstr(format!(
-                        "ENTITY: {}",
-                        self.standing_entity.entity_type
-                    ));
+                    window.addstr(format!("ENTITY: {}", self.standing_entity.entity_type));
                     window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!("TARGET TYPE: {}", self.target.entity_type));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
@@ -665,7 +683,9 @@ impl Client {
                             self.attacking = !self.attacking;
                         }
                         '1' => {
-                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                            if self.client_player.special_attack_change
+                                > self.client_player.special_attack_time
+                            {
                                 attack(
                                     client.clone(),
                                     id,
@@ -680,7 +700,9 @@ impl Client {
                             }
                         }
                         '2' => {
-                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                            if self.client_player.special_attack_change
+                                > self.client_player.special_attack_time
+                            {
                                 attack(
                                     client.clone(),
                                     id,
@@ -695,7 +717,9 @@ impl Client {
                             }
                         }
                         '3' => {
-                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                            if self.client_player.special_attack_change
+                                > self.client_player.special_attack_time
+                            {
                                 attack(
                                     client.clone(),
                                     id,
@@ -710,7 +734,9 @@ impl Client {
                             }
                         }
                         '4' => {
-                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                            if self.client_player.special_attack_change
+                                > self.client_player.special_attack_time
+                            {
                                 attack(
                                     client.clone(),
                                     id,
@@ -725,7 +751,9 @@ impl Client {
                             }
                         }
                         '5' => {
-                            if self.client_player.special_attack_change > self.client_player.special_attack_time {
+                            if self.client_player.special_attack_change
+                                > self.client_player.special_attack_time
+                            {
                                 attack(
                                     client.clone(),
                                     id,
@@ -925,6 +953,7 @@ impl Client {
                     self.client_player.autoattack_change = 0;
                 }
             }
+
             // window.addstr(format!("{}", self.input_change));
             // draw hud
             window.refresh();

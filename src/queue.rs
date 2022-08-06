@@ -32,13 +32,46 @@ pub fn add_to_queue(q: web::Data<Mutex<ActionQueue>>, data: PostData) {
     let mut state = &mut *(q.lock().unwrap_or(default_value));
     state.queue.push(data);
 }
+pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
+    let time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let mut state = &mut *(q.lock().unwrap());
+    let client_ids = open_client_ids_to_struct();
+    for (username, ci) in client_ids.ids.iter() {
+    let chunk_entities = open_entities_as_struct(ci.chunk_x, ci.chunk_y);
+    for (e_id, entity) in chunk_entities.entities.iter() {
+        if entity.entity_type == "scarab".to_string() {
+            let action = PostData {
+                params: HashMap::from([
+                    ("command".to_string(), "move".to_string()),
+                    ("move_dir".to_string(), "right".to_string()),
+                    ("id".to_string(), entity.id.to_string()),
+                    (
+                        "chunk_x".to_string(),
+                        format!("{}", entity.chunk_x).to_string(),
+                    ),
+                    (
+                        "chunk_y".to_string(),
+                        format!("{}", entity.chunk_y).to_string(),
+                    ),
+                ]),
+            };
+            state.queue.push(action);
+        }
+    }
+
+    }
+}
+
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
     let mut state = &mut *(q.lock().unwrap());
     if state.queue.len() > 0 {
         println!("in queue: {}", state.queue.len());
-        let latest = &state.queue[state.queue.len() - 1];
-        println!("{:?}", latest);
-        execute_action(latest.clone());
+        let last = &state.queue[0];
+        println!("{:?}", last);
+        execute_action(last.clone());
         state.queue.remove(0);
     }
 }
@@ -150,8 +183,7 @@ pub fn execute_action(action: PostData) {
                             "double kick" => {
                                 let dmg = rng.gen_range(5..20);
                                 target_entity.hp -= dmg;
-                                
-                            },
+                            }
                             _ => {}
                         };
                         let dmg = rng.gen_range(0..10);

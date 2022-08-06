@@ -205,11 +205,15 @@ pub async fn main() -> std::io::Result<()> {
     let action_queue = Arc::new(RwLock::new(web::Data::new(Mutex::new(ActionQueue {
         queue: Vec::new(),
     }))));
-    let thread_queue = action_queue.clone();
+    let process_queue = action_queue.clone();
+    let exe_queue = action_queue.clone();
     let server_queue = action_queue.clone();
     thread::spawn(move || loop {
-        execute_queue(thread_queue.read().unwrap().clone());
-        thread::sleep(time::Duration::from_millis(50));
+        process_entities(process_queue.read().unwrap().clone());
+        thread::sleep(time::Duration::from_millis(1000));
+    });
+    thread::spawn(move || loop {
+        execute_queue(exe_queue.read().unwrap().clone());
     });
     HttpServer::new(move || {
         App::new()
