@@ -1,3 +1,4 @@
+use crate::client_utils::*;
 use crate::entities::Player;
 use crate::queue::PostData;
 use crate::world::{Entities, Entity, Tile, Tiles, World, WorldMap, WorldMapTile, WorldProperties};
@@ -55,6 +56,10 @@ pub struct ClientPlayer {
     render_y: i32,
     hp: i32,
     energy: i32,
+    autoattack_change: u64,
+    autoattack_time: u64,
+    special_attack_change: u64,
+    special_attack_time: u64,
 }
 pub struct Camera {
     x: i32,
@@ -62,134 +67,6 @@ pub struct Camera {
 }
 pub struct Class {
     pub abilities: HashMap<String, String>,
-}
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
-}
-pub fn open_tiles(x: i32, y: i32) -> Tiles {
-    let path = format!("world/chunks/chunk_{}_{}/tiles.dat", x, y);
-    let t = fs::read(path).unwrap();
-
-    let decoded: Tiles = bincode::deserialize(&t).unwrap();
-    return decoded;
-}
-pub async fn load_tiles(client: reqwest::Client, x: i32, y: i32) -> Tiles {
-    let resp = client
-        .get(format!("http://localhost:8080/tiles/{}/{}", x, y))
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub async fn load_world_map_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
-    let resp = client
-        .get(format!("http://localhost:8080/world_map/{}/{}", x, y))
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub async fn load_chunk_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
-    let resp = client
-        .get(format!("http://localhost:8080/world_map/{}/{}", x, y))
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub async fn load_entities(client: reqwest::Client, x: i32, y: i32) -> Entities {
-    let resp = client
-        .get(format!("http://localhost:8080/entities/{}/{}", x, y))
-        .send()
-        .await;
-    let resp = match resp {
-        Ok(r) => r,
-        Err(e) => {
-            endwin();
-            panic!();
-        }
-    };
-    let body = resp.text().await.unwrap();
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub async fn load_player(client: reqwest::Client, x: i32, y: i32, id: u64) -> Entity {
-    let resp = client
-        .get("http://localhost:8080/entities/{}/{}")
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-    let decoded: Entities = serde_json::from_str(&body).unwrap();
-    return decoded.entities.get(&id).unwrap().clone();
-}
-pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
-    let resp = client
-        .get("http://localhost:8080/world_properties")
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub async fn load_check_if_client_with_id(
-    client: reqwest::Client,
-    username: String,
-    id: u64,
-    chunk_x: i32,
-    chunk_y: i32,
-) -> bool {
-    let resp = client
-        .get(format!(
-            "http://localhost:8080/client_exists/{}/{}/{}/{}",
-            username, id, chunk_x, chunk_y
-        ))
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-    let decoded = body.parse().unwrap();
-    return decoded;
-}
-pub async fn load_search_entity_clientid(
-    client: reqwest::Client,
-    username: String,
-    id: u64,
-) -> ClientId {
-    let resp = client
-        .get(format!("http://localhost:8080/search_entity/{}", username))
-        .send()
-        .await
-        .unwrap();
-    let body = resp.text().await.unwrap();
-    let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
-}
-pub fn open_world_properties(client: reqwest::Client) -> WorldProperties {
-    let path = "world/world_properties.dat";
-    let body = fs::read(path).unwrap();
-    let decoded: WorldProperties = bincode::deserialize(&body).unwrap();
-    let encoded = serde_json::to_string(&decoded).unwrap();
-    return decoded;
-}
-pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
-    let res = client
-        .post("http://localhost:8080/queue")
-        .json(&action)
-        .send()
-        .await;
 }
 pub struct Client {
     pub running: bool,
@@ -203,14 +80,28 @@ pub struct Client {
     pub target: Entity,
     pub has_target: bool,
     pub camera: Camera,
-    pub ui_tiles: HashMap<String,ui_tile>,
-    pub ui_entities: HashMap<String,ui_tile>,
-    pub ui_hud: HashMap<String,ui_tile>,
-    pub ui_world_map_tiles: HashMap<String,ui_tile>,
+    pub ui_tiles: HashMap<String, ui_tile>,
+    pub ui_entities: HashMap<String, ui_tile>,
+    pub ui_hud: HashMap<String, ui_tile>,
+    pub ui_world_map_tiles: HashMap<String, ui_tile>,
+    pub current_chunk_tiles: Vec<Vec<Tiles>>,
+    pub current_world_map: Vec<Vec<WorldMapTile>>,
+    pub first_loop: bool,
+    pub target_index: usize,
+    pub view: String,
+    pub player_inited: bool,
+    pub client_player: ClientPlayer,
+    pub current_world_properties: WorldProperties,
 }
 impl Default for Client {
     fn default() -> Client {
         Client {
+            current_chunk_tiles: Vec::new(),
+            current_world_map: Vec::new(),
+            first_loop: true,
+            target_index: 0,
+            view: "game".to_string(),
+            player_inited: false,
             running: true,
             move_dir: '?',
             attacking: false,
@@ -230,157 +121,178 @@ impl Default for Client {
             target: Entity::default(),
             has_target: false,
             camera: Camera { x: 0, y: 0 },
-        ui_world_map_tiles: HashMap::from([(
-            "barren_land".to_string(),
-            ui_tile {
-                symbol: ".".to_string(),
-                color: 1,
+            current_world_properties: WorldProperties::default(),
+            client_player: ClientPlayer {
+                x: 2,
+                y: 2,
+                relative_x: 2,
+                relative_y: 2,
+                chunk_x: 0,
+                chunk_y: 0,
+                render_x: 2,
+                render_y: 2,
+                hp: 100,
+                energy: 100,
+                autoattack_time: 1000,
+                autoattack_change: 0,
+                special_attack_time: 1000,
+                special_attack_change: 1000,
             },
-        ),
-        (
-            "rock_desert".to_string(),
-            ui_tile {
-                symbol: "*".to_string(),
-                color: 9,
-            },
-        ),
-        (
-            "salt_desert".to_string(),
-            ui_tile {
-                symbol: "_".to_string(),
-                color: 7,
-            },
-        ),
-        (
-            "ice_desert".to_string(),
-            ui_tile {
-                symbol: "~".to_string(),
-              color: 7,
-            },
-        ),
-        (
-            "ash_desert".to_string(),
-            ui_tile {
-                symbol: "`".to_string(),
-                color: 7,
-            },
-        ),
-        (
-            "dunes".to_string(),
-            ui_tile {
-                symbol: "~".to_string(),
-                color: 1,
-            },
-        )]),
-        ui_hud: HashMap::from([
-        (
-            "border".to_string(),
-            ui_tile {
-                symbol: " ".to_string(),
-                color: 6,
-            },
-        ),
-        (
-            "hud_body".to_string(),
-            ui_tile {
-                symbol: " ".to_string(),
-                color: 5,
-            },
-        ),
-        (
-            "hud_text".to_string(),
-            ui_tile {
-                symbol: " ".to_string(),
-                color: 3,
-            },
-        )]),
-        ui_tiles: HashMap::from([
-        (
-            "sand".to_string(),
-            ui_tile {
-                symbol: ".".to_string(),
-                color: 1,
-            },
-        ),
-        (
-            "ice".to_string(),
-            ui_tile {
-                symbol: ".".to_string(),
-                color: 7,
-            },
-        ),
-        (
-            "dune_sand".to_string(),
-            ui_tile {
-                symbol: "~".to_string(),
-                color: 1,
-            },
-        ),
-        (
-            "ash".to_string(),
-            ui_tile {
-                symbol: "`".to_string(),
-                color: 7,
-            },
-        ),
-        (
-            "salt".to_string(),
-            ui_tile {
-                symbol: "_".to_string(),
-                color: 7,
-            },
-        ),
-        (
-            "gravel".to_string(),
-            ui_tile {
-                symbol: "*".to_string(),
-                color: 9,
-            },
-        ),
-        (
-            "rock".to_string(),
-            ui_tile {
-                symbol: "^".to_string(),
-                color: 1,
-            },
-        ),
-        (
-            "water".to_string(),
-            ui_tile {
-                symbol: "~".to_string(),
-                color: 2,
-            },
-        ),
-        (
-            "grass".to_string(),
-            ui_tile {
-                symbol: ".".to_string(),
-                color: 4,
-            },
-        )]),
-        ui_entities: HashMap::from([
-        (
-            "ogre".to_string(),
-            ui_tile {
-                symbol: "O".to_string(),
-                color: 3,
-            },
-        ),
-        (
-            "no entity".to_string(),
-            ui_tile {
-                symbol: " ".to_string(),
-                color: 3,
-            },
-        ),
-        (
-            "hero".to_string(),
-            ui_tile {
-                symbol: "@".to_string(),
-                color: 3,
-            },
-        ),
-        ]),
+            ui_world_map_tiles: HashMap::from([
+                (
+                    "barren_land".to_string(),
+                    ui_tile {
+                        symbol: ".".to_string(),
+                        color: 1,
+                    },
+                ),
+                (
+                    "rock_desert".to_string(),
+                    ui_tile {
+                        symbol: "*".to_string(),
+                        color: 9,
+                    },
+                ),
+                (
+                    "salt_desert".to_string(),
+                    ui_tile {
+                        symbol: "_".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "ice_desert".to_string(),
+                    ui_tile {
+                        symbol: "~".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "ash_desert".to_string(),
+                    ui_tile {
+                        symbol: "`".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "dunes".to_string(),
+                    ui_tile {
+                        symbol: "~".to_string(),
+                        color: 1,
+                    },
+                ),
+            ]),
+            ui_hud: HashMap::from([
+                (
+                    "border".to_string(),
+                    ui_tile {
+                        symbol: " ".to_string(),
+                        color: 6,
+                    },
+                ),
+                (
+                    "hud_body".to_string(),
+                    ui_tile {
+                        symbol: " ".to_string(),
+                        color: 5,
+                    },
+                ),
+                (
+                    "hud_text".to_string(),
+                    ui_tile {
+                        symbol: " ".to_string(),
+                        color: 3,
+                    },
+                ),
+            ]),
+            ui_tiles: HashMap::from([
+                (
+                    "sand".to_string(),
+                    ui_tile {
+                        symbol: ".".to_string(),
+                        color: 1,
+                    },
+                ),
+                (
+                    "ice".to_string(),
+                    ui_tile {
+                        symbol: ".".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "dune_sand".to_string(),
+                    ui_tile {
+                        symbol: "~".to_string(),
+                        color: 1,
+                    },
+                ),
+                (
+                    "ash".to_string(),
+                    ui_tile {
+                        symbol: "`".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "salt".to_string(),
+                    ui_tile {
+                        symbol: "_".to_string(),
+                        color: 7,
+                    },
+                ),
+                (
+                    "gravel".to_string(),
+                    ui_tile {
+                        symbol: "*".to_string(),
+                        color: 9,
+                    },
+                ),
+                (
+                    "rock".to_string(),
+                    ui_tile {
+                        symbol: "^".to_string(),
+                        color: 1,
+                    },
+                ),
+                (
+                    "water".to_string(),
+                    ui_tile {
+                        symbol: "~".to_string(),
+                        color: 2,
+                    },
+                ),
+                (
+                    "grass".to_string(),
+                    ui_tile {
+                        symbol: ".".to_string(),
+                        color: 4,
+                    },
+                ),
+            ]),
+            ui_entities: HashMap::from([
+                (
+                    "ogre".to_string(),
+                    ui_tile {
+                        symbol: "O".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "no entity".to_string(),
+                    ui_tile {
+                        symbol: " ".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "hero".to_string(),
+                    ui_tile {
+                        symbol: "@".to_string(),
+                        color: 3,
+                    },
+                ),
+            ]),
         }
     }
 }
@@ -389,7 +301,7 @@ impl Client {
         let args: Vec<String> = env::args().collect();
         let mut compare_time = SystemTime::now();
         let client = reqwest::Client::new();
-        let current_world_properties = open_world_properties(client.clone());
+        self.current_world_properties = load_world_properties(client.clone()).await;
         let mut rng = rand::thread_rng();
         let mut id = rng.gen::<u64>();
         let mut username = "".to_string();
@@ -398,24 +310,12 @@ impl Client {
             let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
             id = calculate_hash(&to_hashed);
         }
-        let mut client_player = ClientPlayer {
-            x: 2,
-            y: 2,
-            relative_x: 2,
-            relative_y: 2,
-            chunk_x: 0,
-            chunk_y: 0,
-            render_x: 2,
-            render_y: 2,
-            hp: 100,
-            energy: 100,
-        };
         if !load_check_if_client_with_id(
             client.clone(),
             username.clone(),
             id,
-            client_player.chunk_x,
-            client_player.chunk_y,
+            self.client_player.chunk_x,
+            self.client_player.chunk_y,
         )
         .await
         {
@@ -425,15 +325,21 @@ impl Client {
                     params: HashMap::from([
                         ("command".to_string(), "spawn".to_string()),
                         ("id".to_string(), id.to_string()),
-                        ("x".to_string(), format!("{}", client_player.x).to_string()),
-                        ("y".to_string(), format!("{}", client_player.y).to_string()),
+                        (
+                            "x".to_string(),
+                            format!("{}", self.client_player.x).to_string(),
+                        ),
+                        (
+                            "y".to_string(),
+                            format!("{}", self.client_player.y).to_string(),
+                        ),
                         (
                             "chunk_x".to_string(),
-                            format!("{}", client_player.chunk_x).to_string(),
+                            format!("{}", self.client_player.chunk_x).to_string(),
                         ),
                         (
                             "chunk_y".to_string(),
-                            format!("{}", client_player.chunk_y).to_string(),
+                            format!("{}", self.client_player.chunk_y).to_string(),
                         ),
                         ("id".to_string(), format!("{}", id).to_string()),
                         ("name".to_string(), format!("{}", username).to_string()),
@@ -460,58 +366,50 @@ impl Client {
         init_pair(7, COLOR_BLACK, COLOR_WHITE);
         init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
         init_pair(9, COLOR_WHITE, COLOR_BLACK);
-        let mut current_chunk_tiles: Vec<Vec<Tiles>> = Vec::new();
-        let mut current_world_map: Vec<Vec<WorldMapTile>> = Vec::new();
-        let mut first_loop = true;
-        let mut target_index = 0;
-        let mut view = "game".to_string();
-        let mut player_inited = false;
-        let mut server_clientid =
+        let mut server_clientid: ClientId =
             load_search_entity_clientid(client.clone(), username.clone(), id).await;
-        client_player.chunk_x = server_clientid.chunk_x;
-        client_player.chunk_y = server_clientid.chunk_y;
-        self.camera.x = client_player.chunk_x * current_world_properties.chunk_size as i32
-            - current_world_properties.chunk_size as i32 / 2;
-        self.camera.y = client_player.chunk_y * current_world_properties.chunk_size as i32
-            - current_world_properties.chunk_size as i32 / 4;
-        let mut autoattack_change = 0;
-        let autoattack_time = 1000;
-        let mut special_attack_change = 0;
-        let special_attack_time = 1000;
+        self.client_player.chunk_x = server_clientid.chunk_x;
+        self.client_player.chunk_y = server_clientid.chunk_y;
+        self.camera.x = self.client_player.chunk_x
+            * self.current_world_properties.chunk_size as i32
+            - self.current_world_properties.chunk_size as i32 / 2;
+        self.camera.y = self.client_player.chunk_y
+            * self.current_world_properties.chunk_size as i32
+            - self.current_world_properties.chunk_size as i32 / 4;
         while self.running {
-            let mut refresh_tiles = first_loop;
+            let mut refresh_tiles = self.first_loop;
             let mut refresh_entities = true;
             let mut current_chunk_entities = Vec::new();
             let mut targetable_entities: HashMap<u64, Entity> = HashMap::new();
-            if first_loop {
-                for i in 0..current_world_properties.world_width {
-                    current_world_map.push(Vec::new());
-                    for j in 0..current_world_properties.world_height {
-                        current_world_map[i as usize]
+            if self.first_loop {
+                for i in 0..self.current_world_properties.world_width {
+                    self.current_world_map.push(Vec::new());
+                    for j in 0..self.current_world_properties.world_height {
+                        self.current_world_map[i as usize]
                             .push(load_world_map_tile(client.clone(), j as i32, i as i32).await);
                     }
                 }
             }
-            first_loop = false;
+            self.first_loop = false;
             if refresh_entities {
                 for i in 0..self.render_y * 2 {
                     current_chunk_entities.push(Vec::new());
                     for j in 0..self.render_x * 2 {
                         let r_i = i as i32 - self.render_y as i32;
                         let r_j = j as i32 - self.render_x as i32;
-                        let mut c_x = client_player.chunk_x + r_j as i32;
-                        let mut c_y = client_player.chunk_y + r_i as i32;
+                        let mut c_x = self.client_player.chunk_x + r_j as i32;
+                        let mut c_y = self.client_player.chunk_y + r_i as i32;
                         if c_x < 0 {
                             c_x = 0;
                         }
                         if c_y < 0 {
                             c_y = 0;
                         }
-                        if c_x > (current_world_properties.world_width - 1) as i32 {
-                            c_x = current_world_properties.world_width as i32 - 1;
+                        if c_x > (self.current_world_properties.world_width - 1) as i32 {
+                            c_x = self.current_world_properties.world_width as i32 - 1;
                         }
-                        if c_y > (current_world_properties.world_height - 1) as i32 {
-                            c_y = current_world_properties.world_width as i32 - 1;
+                        if c_y > (self.current_world_properties.world_height - 1) as i32 {
+                            c_y = self.current_world_properties.world_width as i32 - 1;
                         }
                         let p_e = load_entities(client.clone(), c_x as i32, c_y as i32).await;
                         current_chunk_entities[i as usize].push(p_e.clone());
@@ -527,11 +425,11 @@ impl Client {
             targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
             let mut target = Entity::default();
             if targetable_entities_sorted.len() > 0 {
-                if target_index > targetable_entities_sorted.len() - 1 {
-                    target_index = targetable_entities_sorted.len() - 1;
+                if self.target_index > targetable_entities_sorted.len() - 1 {
+                    self.target_index = targetable_entities_sorted.len() - 1;
                 }
-                if targetable_entities_sorted[target_index].clone().id != id {
-                    target = targetable_entities_sorted[target_index].clone();
+                if targetable_entities_sorted[self.target_index].clone().id != id {
+                    target = targetable_entities_sorted[self.target_index].clone();
                 }
             }
             let attributes = ColorPair(3);
@@ -545,19 +443,19 @@ impl Client {
                 .unwrap()
                 .as_millis();
             compare_time = SystemTime::now();
-            match view.as_str() {
+            match self.view.as_str() {
                 "game" => {
                     // render tiles
-                    for tiles_row in current_chunk_tiles.iter() {
+                    for tiles_row in self.current_chunk_tiles.iter() {
                         for chunk_tiles in tiles_row.iter() {
                             for row in chunk_tiles.tiles.iter() {
                                 for tile in row.iter() {
                                     let rel_y = chunk_tiles.y
-                                        * current_world_properties.chunk_size as i32
+                                        * self.current_world_properties.chunk_size as i32
                                         + tile.relative_y
                                         - self.camera.y;
                                     let rel_x = chunk_tiles.x
-                                        * current_world_properties.chunk_size as i32
+                                        * self.current_world_properties.chunk_size as i32
                                         + tile.relative_x
                                         - self.camera.x;
                                     if rel_x < 0
@@ -569,7 +467,8 @@ impl Client {
                                     }
 
                                     window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
-                                    let attributes = ColorPair(self.ui_tiles[&tile.tile_type].color);
+                                    let attributes =
+                                        ColorPair(self.ui_tiles[&tile.tile_type].color);
                                     window.attron(attributes);
                                     window.addstr(self.ui_tiles[&tile.tile_type].symbol.clone());
                                 }
@@ -581,28 +480,29 @@ impl Client {
                         for chunk_entities in entities_row.iter() {
                             for (e_id, entity) in chunk_entities.entities.iter() {
                                 let rel_y = chunk_entities.y
-                                    * current_world_properties.chunk_size as i32
+                                    * self.current_world_properties.chunk_size as i32
                                     + entity.relative_y
                                     - self.camera.y;
                                 let rel_x = chunk_entities.x
-                                    * current_world_properties.chunk_size as i32
+                                    * self.current_world_properties.chunk_size as i32
                                     + entity.relative_x
                                     - self.camera.x;
                                 if rel_x < 0 || rel_y < 0 {
                                     continue;
                                 }
                                 if e_id == &id {
-                                    client_player.render_x = rel_x;
-                                    client_player.render_y = rel_y;
-                                    client_player.relative_x = entity.relative_x;
-                                    client_player.relative_y = entity.relative_y;
-                                    client_player.x = entity.x;
-                                    client_player.y = entity.y;
-                                    client_player.hp = entity.hp;
-                                    client_player.energy = entity.energy;
+                                    self.client_player.render_x = rel_x;
+                                    self.client_player.render_y = rel_y;
+                                    self.client_player.relative_x = entity.relative_x;
+                                    self.client_player.relative_y = entity.relative_y;
+                                    self.client_player.x = entity.x;
+                                    self.client_player.y = entity.y;
+                                    self.client_player.hp = entity.hp;
+                                    self.client_player.energy = entity.energy;
                                 }
                                 window.mv(rel_y + 1, rel_x + 1);
-                                let attributes = ColorPair(self.ui_entities[&entity.entity_type].color);
+                                let attributes =
+                                    ColorPair(self.ui_entities[&entity.entity_type].color);
                                 window.attron(attributes);
                                 window.addstr(self.ui_entities[&entity.entity_type].symbol.clone());
                             }
@@ -644,9 +544,9 @@ impl Client {
                     window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
                     window.addstr(format!("5. {}", self.current_class.abilities["5"]));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("HP: {}", client_player.hp));
+                    window.addstr(format!("HP: {}", self.client_player.hp));
                     window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("ENERGY: {}", client_player.energy));
+                    window.addstr(format!("ENERGY: {}", self.client_player.energy));
                     // draw target
                     window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!(
@@ -665,19 +565,23 @@ impl Client {
                         window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
                         window.addstr(format!("/"));
                     }
-                    /*window.mv(client_player.self.render_y, client_player.self.render_x);
+                    /*window.mv(self.client_player.self.render_y, self.client_player.self.render_x);
                     let attributes = ColorPair(self.ui_entities["ogre"].color);
                     window.attron(attributes);
                     window.addstr(self.ui_entities["ogre"].symbol.clone()); */
                 }
                 "map" => {
-                    for row in current_world_map.iter() {
+                    for row in self.current_world_map.iter() {
                         for w_t in row.iter() {
-                            let attributes = ColorPair(self.ui_world_map_tiles[&w_t.chunk_type].color);
+                            let attributes =
+                                ColorPair(self.ui_world_map_tiles[&w_t.chunk_type].color);
                             window.mv(w_t.y + MARGIN_Y, w_t.x + MARGIN_X);
                             window.attron(attributes);
-                            window
-                                .addstr(self.ui_world_map_tiles[&w_t.chunk_type.clone()].symbol.clone());
+                            window.addstr(
+                                self.ui_world_map_tiles[&w_t.chunk_type.clone()]
+                                    .symbol
+                                    .clone(),
+                            );
                         }
                     }
                 }
@@ -703,19 +607,19 @@ impl Client {
                         't' => {
                             self.endless_move_mode = !self.endless_move_mode;
                         }
-                        'm' => match view.as_str() {
+                        'm' => match self.view.as_str() {
                             "game" => {
-                                view = "map".to_string();
+                                self.view = "map".to_string();
                             }
                             "map" => {
-                                view = "game".to_string();
+                                self.view = "game".to_string();
                             }
                             _ => {}
                         },
                         '\t' => {
-                            target_index += 1;
-                            if target_index > targetable_entities.values().len() - 1 {
-                                target_index = 0;
+                            self.target_index += 1;
+                            if self.target_index > targetable_entities.values().len() - 1 {
+                                self.target_index = 0;
                             }
                         }
                         'c' => {
@@ -725,7 +629,7 @@ impl Client {
                             attack(
                                 client.clone(),
                                 id,
-                                client_player.clone(),
+                                self.client_player.clone(),
                                 target.clone(),
                                 "special".to_string(),
                                 format!("{}", self.current_class.abilities["1"]).to_string(),
@@ -736,7 +640,7 @@ impl Client {
                             attack(
                                 client.clone(),
                                 id,
-                                client_player.clone(),
+                                self.client_player.clone(),
                                 target.clone(),
                                 "special".to_string(),
                                 format!("{}", self.current_class.abilities["2"]).to_string(),
@@ -747,7 +651,7 @@ impl Client {
                             attack(
                                 client.clone(),
                                 id,
-                                client_player.clone(),
+                                self.client_player.clone(),
                                 target.clone(),
                                 "special".to_string(),
                                 format!("{}", self.current_class.abilities["3"]).to_string(),
@@ -758,7 +662,7 @@ impl Client {
                             attack(
                                 client.clone(),
                                 id,
-                                client_player.clone(),
+                                self.client_player.clone(),
                                 target.clone(),
                                 "special".to_string(),
                                 format!("{}", self.current_class.abilities["4"]).to_string(),
@@ -769,7 +673,7 @@ impl Client {
                             attack(
                                 client.clone(),
                                 id,
-                                client_player.clone(),
+                                self.client_player.clone(),
                                 target.clone(),
                                 "special".to_string(),
                                 format!("{}", self.current_class.abilities["5"]).to_string(),
@@ -795,12 +699,17 @@ impl Client {
                         do_not_move = true;
                     }
                     if !do_not_move {
-                        move_player(client.clone(), id, "up".to_string(), client_player.clone())
-                            .await;
-                        client_player.y -= 1;
-                        client_player.relative_y -= 1;
+                        move_player(
+                            client.clone(),
+                            id,
+                            "up".to_string(),
+                            self.client_player.clone(),
+                        )
+                        .await;
+                        self.client_player.y -= 1;
+                        self.client_player.relative_y -= 1;
 
-                        if client_player.render_y < EDGE_Y as i32 {
+                        if self.client_player.render_y < EDGE_Y as i32 {
                             self.camera.y -= 1;
                         }
                     }
@@ -816,13 +725,13 @@ impl Client {
                             client.clone(),
                             id,
                             "left".to_string(),
-                            client_player.clone(),
+                            self.client_player.clone(),
                         )
                         .await;
-                        client_player.x -= 1;
-                        client_player.relative_x -= 1;
+                        self.client_player.x -= 1;
+                        self.client_player.relative_x -= 1;
 
-                        if client_player.render_x < EDGE_X as i32 {
+                        if self.client_player.render_x < EDGE_X as i32 {
                             self.camera.x -= 1;
                         }
                     }
@@ -838,13 +747,13 @@ impl Client {
                             client.clone(),
                             id,
                             "down".to_string(),
-                            client_player.clone(),
+                            self.client_player.clone(),
                         )
                         .await;
-                        client_player.y += 1;
-                        client_player.relative_y += 1;
+                        self.client_player.y += 1;
+                        self.client_player.relative_y += 1;
 
-                        if client_player.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
+                        if self.client_player.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
                             self.camera.y += 1;
                         }
                     }
@@ -860,13 +769,13 @@ impl Client {
                             client.clone(),
                             id,
                             "right".to_string(),
-                            client_player.clone(),
+                            self.client_player.clone(),
                         )
                         .await;
-                        client_player.x += 1;
-                        client_player.relative_x += 1;
+                        self.client_player.x += 1;
+                        self.client_player.relative_x += 1;
 
-                        if client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
+                        if self.client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
                             self.camera.x += 1;
                         }
                     }
@@ -875,26 +784,30 @@ impl Client {
             }
             match self.move_dir {
                 'd' => {
-                    if client_player.relative_x == current_world_properties.chunk_size as i32 {
-                        client_player.chunk_x += 1;
+                    if self.client_player.relative_x
+                        == self.current_world_properties.chunk_size as i32
+                    {
+                        self.client_player.chunk_x += 1;
                         refresh_tiles = true;
                     }
                 }
                 's' => {
-                    if client_player.relative_y == current_world_properties.chunk_size as i32 {
-                        client_player.chunk_y += 1;
+                    if self.client_player.relative_y
+                        == self.current_world_properties.chunk_size as i32
+                    {
+                        self.client_player.chunk_y += 1;
                         refresh_tiles = true;
                     }
                 }
                 'a' => {
-                    if client_player.relative_x == -1 {
-                        client_player.chunk_x -= 1;
+                    if self.client_player.relative_x == -1 {
+                        self.client_player.chunk_x -= 1;
                         refresh_tiles = true;
                     }
                 }
                 'w' => {
-                    if client_player.relative_y == -1 {
-                        client_player.chunk_y -= 1;
+                    if self.client_player.relative_y == -1 {
+                        self.client_player.chunk_y -= 1;
                         refresh_tiles = true;
                     }
                 }
@@ -904,27 +817,27 @@ impl Client {
                 self.move_dir = '?';
             }
             if refresh_tiles {
-                current_chunk_tiles = Vec::new();
+                self.current_chunk_tiles = Vec::new();
                 for i in 0..self.render_y * 2 {
-                    current_chunk_tiles.push(Vec::new());
+                    self.current_chunk_tiles.push(Vec::new());
                     for j in 0..self.render_x * 2 {
                         let r_i = i as i32 - self.render_y as i32;
                         let r_j = j as i32 - self.render_x as i32;
-                        let mut c_x = client_player.chunk_x + r_j as i32;
-                        let mut c_y = client_player.chunk_y + r_i as i32;
+                        let mut c_x = self.client_player.chunk_x + r_j as i32;
+                        let mut c_y = self.client_player.chunk_y + r_i as i32;
                         if c_x < 0 {
                             c_x = 0;
                         }
                         if c_y < 0 {
                             c_y = 0;
                         }
-                        if c_x > (current_world_properties.world_width - 1) as i32 {
-                            c_x = current_world_properties.world_width as i32 - 1;
+                        if c_x > (self.current_world_properties.world_width - 1) as i32 {
+                            c_x = self.current_world_properties.world_width as i32 - 1;
                         }
-                        if c_y > (current_world_properties.world_height - 1) as i32 {
-                            c_y = current_world_properties.world_width as i32 - 1;
+                        if c_y > (self.current_world_properties.world_height - 1) as i32 {
+                            c_y = self.current_world_properties.world_width as i32 - 1;
                         }
-                        current_chunk_tiles[i as usize]
+                        self.current_chunk_tiles[i as usize]
                             .push(load_tiles(client.clone(), c_x as i32, c_y as i32).await);
                     }
                 }
@@ -932,19 +845,19 @@ impl Client {
             let delta_as_millis = delta.as_millis() as u64;
             self.input_change += delta_as_millis as u64;
             if self.attacking {
-                autoattack_change += delta_as_millis;
-                special_attack_change += delta_as_millis;
-                if autoattack_change > autoattack_time {
+                self.client_player.autoattack_change += delta_as_millis;
+                self.client_player.special_attack_change += delta_as_millis;
+                if self.client_player.autoattack_change > self.client_player.autoattack_time {
                     attack(
                         client.clone(),
                         id,
-                        client_player.clone(),
+                        self.client_player.clone(),
                         target.clone(),
                         "auto".to_string(),
                         "".to_string(),
                     )
                     .await;
-                    autoattack_change = 0;
+                    self.client_player.autoattack_change = 0;
                 }
             }
             // window.addstr(format!("{}", self.input_change));

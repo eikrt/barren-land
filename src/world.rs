@@ -99,6 +99,18 @@ pub struct WorldProperties {
     pub world_height: u32,
     pub name: String,
 }
+impl Default for WorldProperties {
+    fn default() -> WorldProperties {
+        WorldProperties {
+            seed: 1,
+            sealevel: 1.0,
+            chunk_size: 1,
+            world_width: 1,
+            world_height: 1,
+            name: "".to_string(),
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tiles {
     pub tiles: Vec<Vec<Tile>>,
