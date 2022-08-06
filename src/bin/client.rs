@@ -1,6 +1,7 @@
-use journey::client;
+use journey::client::Client;
 use tokio::{main};
 #[tokio::main]
 async fn main() {
-    client::run().await;
+    let mut client = Client::default();
+    client.run().await;
 }

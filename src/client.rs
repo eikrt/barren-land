@@ -35,16 +35,16 @@ const HUD_HEIGHT: u8 = 12;
 const MARGIN_X: i32 = 0;
 const MARGIN_Y: i32 = 1;
 #[derive(Clone)]
-struct ui_tile {
+pub struct ui_tile {
     symbol: String,
     color: u8,
 }
-struct ui_entity {
+pub struct ui_entity {
     symbol: String,
     color: u8,
 }
 #[derive(Clone)]
-struct ClientPlayer {
+pub struct ClientPlayer {
     x: i32,
     y: i32,
     relative_x: i32,
@@ -56,12 +56,12 @@ struct ClientPlayer {
     hp: i32,
     energy: i32,
 }
-struct Camera {
+pub struct Camera {
     x: i32,
     y: i32,
 }
 pub struct Class {
-    pub abilities: HashMap<String,String>
+    pub abilities: HashMap<String, String>,
 }
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
@@ -191,706 +191,771 @@ pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
         .send()
         .await;
 }
-pub async fn run() {
-    let mut running = true;
-    let mut w = false;
-    let mut a = false;
-    let mut s = false;
-    let mut d = false;
-    let mut up = false;
-    let mut down = false;
-    let mut left = false;
-    let mut right = false;
-    let mut move_dir = '?';
-    let mut attacking = false;
-    let mut endless_move_mode = false;
-    let mut input_change = 0;
-    let current_class = Class {
-        abilities: HashMap::from([
-            ("1".to_string(), "slash".to_string()),
-            ("2".to_string(), "poke".to_string()),
-            ("3".to_string(), "tear".to_string()),
-            ("4".to_string(), "kick".to_string()),
-            ("5".to_string(), "maim".to_string()),
-        ])
-    };
-    let args: Vec<String> = env::args().collect();
-    let render_x = 2;
-    let render_y = 1;
-    let target: Entity = Entity::default();
-    let has_target = false;
-    let mut compare_time = SystemTime::now();
-    let client = reqwest::Client::new();
-    let current_world_properties = open_world_properties(client.clone());
-    let mut camera = Camera { x: 0, y: 0 };
-
-    let mut rng = rand::thread_rng();
-
-    let mut id: u64 = rng.gen::<u64>();
-    let mut username = "".to_string();
-    if args.len() == 3 {
-        username = args[1].clone();
-        let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
-        id = calculate_hash(&to_hashed);
-    }
-    let mut client_player = ClientPlayer {
-        x: 2,
-        y: 2,
-        relative_x: 2,
-        relative_y: 2,
-        chunk_x: 0,
-        chunk_y: 0,
-        render_x: 2,
-        render_y: 2,
-        hp: 100,
-        energy: 100,
-    };
-    if !load_check_if_client_with_id(
-        client.clone(),
-        username.clone(),
-        id,
-        client_player.chunk_x,
-        client_player.chunk_y,
-    )
-    .await
-    {
-        post_to_queue(
-            client.clone(),
-            PostData {
-                params: HashMap::from([
-                    ("command".to_string(), "spawn".to_string()),
-                    ("id".to_string(), id.to_string()),
-                    ("x".to_string(), format!("{}", client_player.x).to_string()),
-                    ("y".to_string(), format!("{}", client_player.y).to_string()),
-                    (
-                        "chunk_x".to_string(),
-                        format!("{}", client_player.chunk_x).to_string(),
-                    ),
-                    (
-                        "chunk_y".to_string(),
-                        format!("{}", client_player.chunk_y).to_string(),
-                    ),
-                    ("id".to_string(), format!("{}", id).to_string()),
-                    ("name".to_string(), format!("{}", username).to_string()),
+pub struct Client {
+    pub running: bool,
+    pub move_dir: char,
+    pub attacking: bool,
+    pub endless_move_mode: bool,
+    pub input_change: u64,
+    pub current_class: Class,
+    pub render_x: i32,
+    pub render_y: i32,
+    pub target: Entity,
+    pub has_target: bool,
+    pub camera: Camera,
+    pub ui_tiles: HashMap<String,ui_tile>,
+    pub ui_entities: HashMap<String,ui_tile>,
+    pub ui_hud: HashMap<String,ui_tile>,
+    pub ui_world_map_tiles: HashMap<String,ui_tile>,
+}
+impl Default for Client {
+    fn default() -> Client {
+        Client {
+            running: true,
+            move_dir: '?',
+            attacking: false,
+            endless_move_mode: false,
+            input_change: 0,
+            current_class: Class {
+                abilities: HashMap::from([
+                    ("1".to_string(), "slash".to_string()),
+                    ("2".to_string(), "poke".to_string()),
+                    ("3".to_string(), "tear".to_string()),
+                    ("4".to_string(), "kick".to_string()),
+                    ("5".to_string(), "maim".to_string()),
                 ]),
             },
-        )
-        .await;
-    } else {
+            render_x: 2,
+            render_y: 1,
+            target: Entity::default(),
+            has_target: false,
+            camera: Camera { x: 0, y: 0 },
+        ui_world_map_tiles: HashMap::from([(
+            "barren_land".to_string(),
+            ui_tile {
+                symbol: ".".to_string(),
+                color: 1,
+            },
+        ),
+        (
+            "rock_desert".to_string(),
+            ui_tile {
+                symbol: "*".to_string(),
+                color: 9,
+            },
+        ),
+        (
+            "salt_desert".to_string(),
+            ui_tile {
+                symbol: "_".to_string(),
+                color: 7,
+            },
+        ),
+        (
+            "ice_desert".to_string(),
+            ui_tile {
+                symbol: "~".to_string(),
+              color: 7,
+            },
+        ),
+        (
+            "ash_desert".to_string(),
+            ui_tile {
+                symbol: "`".to_string(),
+                color: 7,
+            },
+        ),
+        (
+            "dunes".to_string(),
+            ui_tile {
+                symbol: "~".to_string(),
+                color: 1,
+            },
+        )]),
+        ui_hud: HashMap::from([
+        (
+            "border".to_string(),
+            ui_tile {
+                symbol: " ".to_string(),
+                color: 6,
+            },
+        ),
+        (
+            "hud_body".to_string(),
+            ui_tile {
+                symbol: " ".to_string(),
+                color: 5,
+            },
+        ),
+        (
+            "hud_text".to_string(),
+            ui_tile {
+                symbol: " ".to_string(),
+                color: 3,
+            },
+        )]),
+        ui_tiles: HashMap::from([
+        (
+            "sand".to_string(),
+            ui_tile {
+                symbol: ".".to_string(),
+                color: 1,
+            },
+        ),
+        (
+            "ice".to_string(),
+            ui_tile {
+                symbol: ".".to_string(),
+                color: 7,
+            },
+        ),
+        (
+            "dune_sand".to_string(),
+            ui_tile {
+                symbol: "~".to_string(),
+                color: 1,
+            },
+        ),
+        (
+            "ash".to_string(),
+            ui_tile {
+                symbol: "`".to_string(),
+                color: 7,
+            },
+        ),
+        (
+            "salt".to_string(),
+            ui_tile {
+                symbol: "_".to_string(),
+                color: 7,
+            },
+        ),
+        (
+            "gravel".to_string(),
+            ui_tile {
+                symbol: "*".to_string(),
+                color: 9,
+            },
+        ),
+        (
+            "rock".to_string(),
+            ui_tile {
+                symbol: "^".to_string(),
+                color: 1,
+            },
+        ),
+        (
+            "water".to_string(),
+            ui_tile {
+                symbol: "~".to_string(),
+                color: 2,
+            },
+        ),
+        (
+            "grass".to_string(),
+            ui_tile {
+                symbol: ".".to_string(),
+                color: 4,
+            },
+        )]),
+        ui_entities: HashMap::from([
+        (
+            "ogre".to_string(),
+            ui_tile {
+                symbol: "O".to_string(),
+                color: 3,
+            },
+        ),
+        (
+            "no entity".to_string(),
+            ui_tile {
+                symbol: " ".to_string(),
+                color: 3,
+            },
+        ),
+        (
+            "hero".to_string(),
+            ui_tile {
+                symbol: "@".to_string(),
+                color: 3,
+            },
+        ),
+        ]),
+        }
     }
-    let window = initscr();
-    window.refresh();
-    window.keypad(true);
-    window.timeout(REFRESH_TIME as i32);
-    curs_set(0);
-    noecho();
-    start_color();
-    use_default_colors();
-    init_pair(1, COLOR_WHITE, COLOR_YELLOW);
-    init_pair(2, COLOR_WHITE, COLOR_BLUE);
-    init_pair(3, COLOR_WHITE, COLOR_BLACK);
-    init_pair(4, COLOR_WHITE, COLOR_GREEN);
-    init_pair(5, COLOR_BLACK, COLOR_BLACK);
-    init_pair(6, COLOR_WHITE, COLOR_WHITE);
-    init_pair(7, COLOR_BLACK, COLOR_WHITE);
-    init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
-    init_pair(9, COLOR_WHITE, COLOR_BLACK);
-    let mut ui_tiles = HashMap::new();
-    let mut ui_entities = HashMap::new();
-    let mut ui_hud = HashMap::new();
-    let mut ui_world_map_tiles = HashMap::new();
-    ui_world_map_tiles.insert(
-        "barren_land".to_string(),
-        ui_tile {
-            symbol: ".".to_string(),
-            color: 1,
-        },
-    );
-    ui_world_map_tiles.insert(
-        "rock_desert".to_string(),
-        ui_tile {
-            symbol: "*".to_string(),
-            color: 9,
-        },
-    );
-    ui_world_map_tiles.insert(
-        "salt_desert".to_string(),
-        ui_tile {
-            symbol: "_".to_string(),
-            color: 7,
-        },
-    );
-    ui_world_map_tiles.insert(
-        "ice_desert".to_string(),
-        ui_tile {
-            symbol: "~".to_string(),
-            color: 7,
-        },
-    );
-    ui_world_map_tiles.insert(
-        "ash_desert".to_string(),
-        ui_tile {
-            symbol: "`".to_string(),
-            color: 7,
-        },
-    );
-    ui_world_map_tiles.insert(
-        "dunes".to_string(),
-        ui_tile {
-            symbol: "~".to_string(),
-            color: 1,
-        },
-    );
-    ui_hud.insert(
-        "border".to_string(),
-        ui_tile {
-            symbol: " ".to_string(),
-            color: 6,
-        },
-    );
-    ui_hud.insert(
-        "hud_body".to_string(),
-        ui_tile {
-            symbol: " ".to_string(),
-            color: 5,
-        },
-    );
-    ui_hud.insert(
-        "hud_text".to_string(),
-        ui_tile {
-            symbol: " ".to_string(),
-            color: 3,
-        },
-    );
-    ui_tiles.insert(
-        "sand".to_string(),
-        ui_tile {
-            symbol: ".".to_string(),
-            color: 1,
-        },
-    );
-    ui_tiles.insert(
-        "ice".to_string(),
-        ui_tile {
-            symbol: ".".to_string(),
-            color: 7,
-        },
-    );
-    ui_tiles.insert(
-        "dune_sand".to_string(),
-        ui_tile {
-            symbol: "~".to_string(),
-            color: 1,
-        },
-    );
-    ui_tiles.insert(
-        "ash".to_string(),
-        ui_tile {
-            symbol: "`".to_string(),
-            color: 7,
-        },
-    );
-    ui_tiles.insert(
-        "salt".to_string(),
-        ui_tile {
-            symbol: "_".to_string(),
-            color: 7,
-        },
-    );
-    ui_tiles.insert(
-        "gravel".to_string(),
-        ui_tile {
-            symbol: "*".to_string(),
-            color: 9,
-        },
-    );
-    ui_tiles.insert(
-        "rock".to_string(),
-        ui_tile {
-            symbol: "^".to_string(),
-            color: 1,
-        },
-    );
-    ui_tiles.insert(
-        "water".to_string(),
-        ui_tile {
-            symbol: "~".to_string(),
-            color: 2,
-        },
-    );
-    ui_tiles.insert(
-        "grass".to_string(),
-        ui_tile {
-            symbol: ".".to_string(),
-            color: 4,
-        },
-    );
-    ui_entities.insert(
-        "ogre".to_string(),
-        ui_tile {
-            symbol: "O".to_string(),
-            color: 3,
-        },
-    );
-    ui_entities.insert(
-        "no entity".to_string(),
-        ui_tile {
-            symbol: " ".to_string(),
-            color: 3,
-        },
-    );
-    ui_entities.insert(
-        "hero".to_string(),
-        ui_tile {
-            symbol: "@".to_string(),
-            color: 3,
-        },
-    );
-    let mut current_chunk_tiles: Vec<Vec<Tiles>> = Vec::new();
-    let mut current_world_map: Vec<Vec<WorldMapTile>> = Vec::new();
-    let mut first_loop = true;
-    let mut target_index = 0;
-    let mut view = "game".to_string();
-    let mut player_inited = false;
-    let mut server_clientid =
-        load_search_entity_clientid(client.clone(), username.clone(), id).await;
-    client_player.chunk_x = server_clientid.chunk_x;
-    client_player.chunk_y = server_clientid.chunk_y;
-    camera.x = client_player.chunk_x * current_world_properties.chunk_size as i32
-        - current_world_properties.chunk_size as i32 / 2;
-    camera.y = client_player.chunk_y * current_world_properties.chunk_size as i32
-        - current_world_properties.chunk_size as i32 / 4;
-    let mut autoattack_change = 0;
-    let autoattack_time = 1000;
-    let mut special_attack_change = 0;
-    let special_attack_time = 1000;
-    while running {
-        let mut refresh_tiles = first_loop;
-        let mut refresh_entities = true;
-        let mut current_chunk_entities = Vec::new();
-        let mut targetable_entities: HashMap<u64, Entity> = HashMap::new();
-        if first_loop {
-            for i in 0..current_world_properties.world_width {
-                current_world_map.push(Vec::new());
-                for j in 0..current_world_properties.world_height {
-                    current_world_map[i as usize]
-                        .push(load_world_map_tile(client.clone(), j as i32, i as i32).await);
+}
+impl Client {
+    pub async fn run(&mut self) {
+        let args: Vec<String> = env::args().collect();
+        let mut compare_time = SystemTime::now();
+        let client = reqwest::Client::new();
+        let current_world_properties = open_world_properties(client.clone());
+        let mut rng = rand::thread_rng();
+        let mut id = rng.gen::<u64>();
+        let mut username = "".to_string();
+        if args.len() == 3 {
+            username = args[1].clone();
+            let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
+            id = calculate_hash(&to_hashed);
+        }
+        let mut client_player = ClientPlayer {
+            x: 2,
+            y: 2,
+            relative_x: 2,
+            relative_y: 2,
+            chunk_x: 0,
+            chunk_y: 0,
+            render_x: 2,
+            render_y: 2,
+            hp: 100,
+            energy: 100,
+        };
+        if !load_check_if_client_with_id(
+            client.clone(),
+            username.clone(),
+            id,
+            client_player.chunk_x,
+            client_player.chunk_y,
+        )
+        .await
+        {
+            post_to_queue(
+                client.clone(),
+                PostData {
+                    params: HashMap::from([
+                        ("command".to_string(), "spawn".to_string()),
+                        ("id".to_string(), id.to_string()),
+                        ("x".to_string(), format!("{}", client_player.x).to_string()),
+                        ("y".to_string(), format!("{}", client_player.y).to_string()),
+                        (
+                            "chunk_x".to_string(),
+                            format!("{}", client_player.chunk_x).to_string(),
+                        ),
+                        (
+                            "chunk_y".to_string(),
+                            format!("{}", client_player.chunk_y).to_string(),
+                        ),
+                        ("id".to_string(), format!("{}", id).to_string()),
+                        ("name".to_string(), format!("{}", username).to_string()),
+                    ]),
+                },
+            )
+            .await;
+        } else {
+        }
+        let window = initscr();
+        window.refresh();
+        window.keypad(true);
+        window.timeout(REFRESH_TIME as i32);
+        curs_set(0);
+        noecho();
+        start_color();
+        use_default_colors();
+        init_pair(1, COLOR_WHITE, COLOR_YELLOW);
+        init_pair(2, COLOR_WHITE, COLOR_BLUE);
+        init_pair(3, COLOR_WHITE, COLOR_BLACK);
+        init_pair(4, COLOR_WHITE, COLOR_GREEN);
+        init_pair(5, COLOR_BLACK, COLOR_BLACK);
+        init_pair(6, COLOR_WHITE, COLOR_WHITE);
+        init_pair(7, COLOR_BLACK, COLOR_WHITE);
+        init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
+        init_pair(9, COLOR_WHITE, COLOR_BLACK);
+        let mut current_chunk_tiles: Vec<Vec<Tiles>> = Vec::new();
+        let mut current_world_map: Vec<Vec<WorldMapTile>> = Vec::new();
+        let mut first_loop = true;
+        let mut target_index = 0;
+        let mut view = "game".to_string();
+        let mut player_inited = false;
+        let mut server_clientid =
+            load_search_entity_clientid(client.clone(), username.clone(), id).await;
+        client_player.chunk_x = server_clientid.chunk_x;
+        client_player.chunk_y = server_clientid.chunk_y;
+        self.camera.x = client_player.chunk_x * current_world_properties.chunk_size as i32
+            - current_world_properties.chunk_size as i32 / 2;
+        self.camera.y = client_player.chunk_y * current_world_properties.chunk_size as i32
+            - current_world_properties.chunk_size as i32 / 4;
+        let mut autoattack_change = 0;
+        let autoattack_time = 1000;
+        let mut special_attack_change = 0;
+        let special_attack_time = 1000;
+        while self.running {
+            let mut refresh_tiles = first_loop;
+            let mut refresh_entities = true;
+            let mut current_chunk_entities = Vec::new();
+            let mut targetable_entities: HashMap<u64, Entity> = HashMap::new();
+            if first_loop {
+                for i in 0..current_world_properties.world_width {
+                    current_world_map.push(Vec::new());
+                    for j in 0..current_world_properties.world_height {
+                        current_world_map[i as usize]
+                            .push(load_world_map_tile(client.clone(), j as i32, i as i32).await);
+                    }
                 }
             }
-        }
-        first_loop = false;
-        if refresh_entities {
-            for i in 0..render_y * 2 {
-                current_chunk_entities.push(Vec::new());
-                for j in 0..render_x * 2 {
-                    let r_i = i as i32 - render_y as i32;
-                    let r_j = j as i32 - render_x as i32;
-                    let mut c_x = client_player.chunk_x + r_j as i32;
-                    let mut c_y = client_player.chunk_y + r_i as i32;
-                    if c_x < 0 {
-                        c_x = 0;
+            first_loop = false;
+            if refresh_entities {
+                for i in 0..self.render_y * 2 {
+                    current_chunk_entities.push(Vec::new());
+                    for j in 0..self.render_x * 2 {
+                        let r_i = i as i32 - self.render_y as i32;
+                        let r_j = j as i32 - self.render_x as i32;
+                        let mut c_x = client_player.chunk_x + r_j as i32;
+                        let mut c_y = client_player.chunk_y + r_i as i32;
+                        if c_x < 0 {
+                            c_x = 0;
+                        }
+                        if c_y < 0 {
+                            c_y = 0;
+                        }
+                        if c_x > (current_world_properties.world_width - 1) as i32 {
+                            c_x = current_world_properties.world_width as i32 - 1;
+                        }
+                        if c_y > (current_world_properties.world_height - 1) as i32 {
+                            c_y = current_world_properties.world_width as i32 - 1;
+                        }
+                        let p_e = load_entities(client.clone(), c_x as i32, c_y as i32).await;
+                        current_chunk_entities[i as usize].push(p_e.clone());
+                        targetable_entities.extend(p_e.entities.clone());
                     }
-                    if c_y < 0 {
-                        c_y = 0;
-                    }
-                    if c_x > (current_world_properties.world_width - 1) as i32 {
-                        c_x = current_world_properties.world_width as i32 - 1;
-                    }
-                    if c_y > (current_world_properties.world_height - 1) as i32 {
-                        c_y = current_world_properties.world_width as i32 - 1;
-                    }
-                    let p_e = load_entities(client.clone(), c_x as i32, c_y as i32).await;
-                    current_chunk_entities[i].push(p_e.clone());
-                    targetable_entities.extend(p_e.entities.clone());
                 }
             }
-        }
-        let mut targetable_entities_sorted = Vec::new();
-        for e in targetable_entities.values() {
-            targetable_entities_sorted.push(e);
-        }
-        targetable_entities_sorted.sort_by(|e1, e2| e1.x.cmp(&e2.x));
-        targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
-        let mut target = Entity::default();
-        if targetable_entities_sorted.len() > 0 {
-            if target_index > targetable_entities_sorted.len() - 1 {
-                target_index = targetable_entities_sorted.len() - 1;
+            let mut targetable_entities_sorted = Vec::new();
+            for e in targetable_entities.values() {
+                targetable_entities_sorted.push(e);
             }
-            if targetable_entities_sorted[target_index].clone().id != id {
-                target = targetable_entities_sorted[target_index].clone();
+            targetable_entities_sorted.sort_by(|e1, e2| e1.x.cmp(&e2.x));
+            targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
+            let mut target = Entity::default();
+            if targetable_entities_sorted.len() > 0 {
+                if target_index > targetable_entities_sorted.len() - 1 {
+                    target_index = targetable_entities_sorted.len() - 1;
+                }
+                if targetable_entities_sorted[target_index].clone().id != id {
+                    target = targetable_entities_sorted[target_index].clone();
+                }
             }
-        }
-        let attributes = ColorPair(3);
+            let attributes = ColorPair(3);
 
-        window.attron(attributes);
-        window.mv(0, 1);
-        window.printw("Barren Land\n");
-        let delta = SystemTime::now().duration_since(compare_time).unwrap();
-        let time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        compare_time = SystemTime::now();
-        match view.as_str() {
-            "game" => {
-                // render tiles
-                for tiles_row in current_chunk_tiles.iter() {
-                    for chunk_tiles in tiles_row.iter() {
-                        for row in chunk_tiles.tiles.iter() {
-                            for tile in row.iter() {
-                                let rel_y = chunk_tiles.y
+            window.attron(attributes);
+            window.mv(0, 1);
+            window.printw("Barren Land\n");
+            let delta = SystemTime::now().duration_since(compare_time).unwrap();
+            let time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            compare_time = SystemTime::now();
+            match view.as_str() {
+                "game" => {
+                    // render tiles
+                    for tiles_row in current_chunk_tiles.iter() {
+                        for chunk_tiles in tiles_row.iter() {
+                            for row in chunk_tiles.tiles.iter() {
+                                for tile in row.iter() {
+                                    let rel_y = chunk_tiles.y
+                                        * current_world_properties.chunk_size as i32
+                                        + tile.relative_y
+                                        - self.camera.y;
+                                    let rel_x = chunk_tiles.x
+                                        * current_world_properties.chunk_size as i32
+                                        + tile.relative_x
+                                        - self.camera.x;
+                                    if rel_x < 0
+                                        || rel_y < 0
+                                        || rel_x > SCREEN_WIDTH as i32 - 1
+                                        || rel_y > SCREEN_HEIGHT as i32 - MARGIN_Y
+                                    {
+                                        continue;
+                                    }
+
+                                    window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
+                                    let attributes = ColorPair(self.ui_tiles[&tile.tile_type].color);
+                                    window.attron(attributes);
+                                    window.addstr(self.ui_tiles[&tile.tile_type].symbol.clone());
+                                }
+                            }
+                        }
+                    }
+                    // render entities
+                    for entities_row in current_chunk_entities.iter() {
+                        for chunk_entities in entities_row.iter() {
+                            for (e_id, entity) in chunk_entities.entities.iter() {
+                                let rel_y = chunk_entities.y
                                     * current_world_properties.chunk_size as i32
-                                    + tile.relative_y
-                                    - camera.y;
-                                let rel_x = chunk_tiles.x
+                                    + entity.relative_y
+                                    - self.camera.y;
+                                let rel_x = chunk_entities.x
                                     * current_world_properties.chunk_size as i32
-                                    + tile.relative_x
-                                    - camera.x;
-                                if rel_x < 0
-                                    || rel_y < 0
-                                    || rel_x > SCREEN_WIDTH as i32 - 1
-                                    || rel_y > SCREEN_HEIGHT as i32 - MARGIN_Y
-                                {
+                                    + entity.relative_x
+                                    - self.camera.x;
+                                if rel_x < 0 || rel_y < 0 {
                                     continue;
                                 }
-
-                                window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
-                                let attributes = ColorPair(ui_tiles[&tile.tile_type].color);
+                                if e_id == &id {
+                                    client_player.render_x = rel_x;
+                                    client_player.render_y = rel_y;
+                                    client_player.relative_x = entity.relative_x;
+                                    client_player.relative_y = entity.relative_y;
+                                    client_player.x = entity.x;
+                                    client_player.y = entity.y;
+                                    client_player.hp = entity.hp;
+                                    client_player.energy = entity.energy;
+                                }
+                                window.mv(rel_y + 1, rel_x + 1);
+                                let attributes = ColorPair(self.ui_entities[&entity.entity_type].color);
                                 window.attron(attributes);
-                                window.addstr(ui_tiles[&tile.tile_type].symbol.clone());
+                                window.addstr(self.ui_entities[&entity.entity_type].symbol.clone());
                             }
                         }
                     }
-                }
-                // render entities
-                for entities_row in current_chunk_entities.iter() {
-                    for chunk_entities in entities_row.iter() {
-                        for (e_id, entity) in chunk_entities.entities.iter() {
-                            let rel_y = chunk_entities.y
-                                * current_world_properties.chunk_size as i32
-                                + entity.relative_y
-                                - camera.y;
-                            let rel_x = chunk_entities.x
-                                * current_world_properties.chunk_size as i32
-                                + entity.relative_x
-                                - camera.x;
-                            if rel_x < 0 || rel_y < 0 {
-                                continue;
+                    // draw hud
+                    for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
+                        for j in HUD_X..(HUD_X + HUD_WIDTH) {
+                            let mut hud_element = "border";
+                            if !(i == HUD_Y
+                                || i == HUD_Y + HUD_HEIGHT - 1
+                                || j == HUD_X
+                                || j == HUD_X + HUD_WIDTH - 1)
+                            {
+                                hud_element = "hud_body";
                             }
-                            if e_id == &id {
-                                client_player.render_x = rel_x;
-                                client_player.render_y = rel_y;
-                                client_player.relative_x = entity.relative_x;
-                                client_player.relative_y = entity.relative_y;
-                                client_player.x = entity.x;
-                                client_player.y = entity.y;
-                                client_player.hp = entity.hp;
-                                client_player.energy = entity.energy;
-                            }
-                            window.mv(rel_y + 1, rel_x + 1);
-                            let attributes = ColorPair(ui_entities[&entity.entity_type].color);
+
+                            let attributes = ColorPair(self.ui_hud[hud_element].color);
                             window.attron(attributes);
-                            window.addstr(ui_entities[&entity.entity_type].symbol.clone());
+                            window.mv(i as i32 + MARGIN_Y, j as i32 + MARGIN_X);
+                            window.addstr(self.ui_hud[hud_element].symbol.clone());
+                        }
+                    }
+                    let attributes = ColorPair(self.ui_hud["hud_text"].color);
+                    // abilities
+                    window.attron(attributes);
+                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
+                    window.addstr(format!("{}", username.clone()));
+                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("ABILITIES: "));
+                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("1. {}", self.current_class.abilities["1"]));
+                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("2. {}", self.current_class.abilities["2"]));
+                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("3. {}", self.current_class.abilities["3"]));
+                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("4. {}", self.current_class.abilities["4"]));
+                    window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
+                    window.addstr(format!("5. {}", self.current_class.abilities["5"]));
+                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
+                    window.addstr(format!("HP: {}", client_player.hp));
+                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
+                    window.addstr(format!("ENERGY: {}", client_player.energy));
+                    // draw target
+                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!(
+                        "TARGET: {}",
+                        self.ui_entities[&target.entity_type].symbol
+                    ));
+                    window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!("TARGET TYPE: {}", target.entity_type));
+                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!("TARGET NAME : {}", target.name));
+                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!("TARGET HEALTH: {}", target.hp));
+                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
+                    window.addstr(format!("TARGET ENERGY: {}", target.energy));
+                    if self.attacking {
+                        window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
+                        window.addstr(format!("/"));
+                    }
+                    /*window.mv(client_player.self.render_y, client_player.self.render_x);
+                    let attributes = ColorPair(self.ui_entities["ogre"].color);
+                    window.attron(attributes);
+                    window.addstr(self.ui_entities["ogre"].symbol.clone()); */
+                }
+                "map" => {
+                    for row in current_world_map.iter() {
+                        for w_t in row.iter() {
+                            let attributes = ColorPair(self.ui_world_map_tiles[&w_t.chunk_type].color);
+                            window.mv(w_t.y + MARGIN_Y, w_t.x + MARGIN_X);
+                            window.attron(attributes);
+                            window
+                                .addstr(self.ui_world_map_tiles[&w_t.chunk_type.clone()].symbol.clone());
                         }
                     }
                 }
-                // draw hud
-                for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
-                    for j in HUD_X..(HUD_X + HUD_WIDTH) {
-                        let mut hud_element = "border";
-                        if !(i == HUD_Y
-                            || i == HUD_Y + HUD_HEIGHT - 1
-                            || j == HUD_X
-                            || j == HUD_X + HUD_WIDTH - 1)
-                        {
-                            hud_element = "hud_body";
+                _ => {}
+            }
+            match window.getch() {
+                Some(Input::Character(c)) => {
+                    //    window.addch(c);
+                    match c {
+                        'w' => {
+                            self.move_dir = 'w';
+                        }
+                        'a' => {
+                            self.move_dir = 'a';
+                        }
+                        's' => {
+                            self.move_dir = 's';
+                        }
+                        'd' => {
+                            self.move_dir = 'd';
                         }
 
-                        let attributes = ColorPair(ui_hud[hud_element].color);
-                        window.attron(attributes);
-                        window.mv(i as i32 + MARGIN_Y, j as i32 + MARGIN_X);
-                        window.addstr(ui_hud[hud_element].symbol.clone());
-                    }
-                }
-                let attributes = ColorPair(ui_hud["hud_text"].color);
-                // abilities
-                window.attron(attributes);
-                window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                window.addstr(format!("{}", username.clone()));
-                window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("ABILITIES: "));
-                window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("1. {}",current_class.abilities["1"]));
-                window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("2. {}",current_class.abilities["2"]));
-                window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("3. {}",current_class.abilities["3"]));
-                window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("4. {}",current_class.abilities["4"]));
-                window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                window.addstr(format!("5. {}",current_class.abilities["5"]));
-                window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                window.addstr(format!("HP: {}", client_player.hp));
-                window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                window.addstr(format!("ENERGY: {}", client_player.energy));
-                // draw target
-                window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!(
-                    "TARGET: {}",
-                    ui_entities[&target.entity_type].symbol
-                ));
-                window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!("TARGET TYPE: {}", target.entity_type));
-                window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!("TARGET NAME : {}", target.name));
-                window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!("TARGET HEALTH: {}", target.hp));
-                window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                window.addstr(format!("TARGET ENERGY: {}", target.energy));
-                if attacking {
-                    window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
-                    window.addstr(format!("/"));
-                }
-                /*window.mv(client_player.render_y, client_player.render_x);
-                let attributes = ColorPair(ui_entities["ogre"].color);
-                window.attron(attributes);
-                window.addstr(ui_entities["ogre"].symbol.clone()); */
-            }
-            "map" => {
-                for row in current_world_map.iter() {
-                    for w_t in row.iter() {
-                        let attributes = ColorPair(ui_world_map_tiles[&w_t.chunk_type].color);
-                        window.mv(w_t.y + MARGIN_Y, w_t.x + MARGIN_X);
-                        window.attron(attributes);
-                        window.addstr(ui_world_map_tiles[&w_t.chunk_type.clone()].symbol.clone());
-                    }
-                }
-            }
-            _ => {}
-        }
-        match window.getch() {
-            Some(Input::Character(c)) => {
-                //    window.addch(c);
-                match c {
-                    'w' => {
-                        move_dir = 'w';
-                    }
-                    'a' => {
-                        move_dir = 'a';
-                    }
-                    's' => {
-                        move_dir = 's';
-                    }
-                    'd' => {
-                        move_dir = 'd';
-                    }
-
-                    't' => {
-                        endless_move_mode = !endless_move_mode;
-                    }
-                    'm' => match view.as_str() {
-                        "game" => {
-                            view = "map".to_string();
+                        't' => {
+                            self.endless_move_mode = !self.endless_move_mode;
                         }
-                        "map" => {
-                            view = "game".to_string();
+                        'm' => match view.as_str() {
+                            "game" => {
+                                view = "map".to_string();
+                            }
+                            "map" => {
+                                view = "game".to_string();
+                            }
+                            _ => {}
+                        },
+                        '\t' => {
+                            target_index += 1;
+                            if target_index > targetable_entities.values().len() - 1 {
+                                target_index = 0;
+                            }
+                        }
+                        'c' => {
+                            self.attacking = !self.attacking;
+                        }
+                        '1' => {
+                            attack(
+                                client.clone(),
+                                id,
+                                client_player.clone(),
+                                target.clone(),
+                                "special".to_string(),
+                                format!("{}", self.current_class.abilities["1"]).to_string(),
+                            )
+                            .await;
+                        }
+                        '2' => {
+                            attack(
+                                client.clone(),
+                                id,
+                                client_player.clone(),
+                                target.clone(),
+                                "special".to_string(),
+                                format!("{}", self.current_class.abilities["2"]).to_string(),
+                            )
+                            .await;
+                        }
+                        '3' => {
+                            attack(
+                                client.clone(),
+                                id,
+                                client_player.clone(),
+                                target.clone(),
+                                "special".to_string(),
+                                format!("{}", self.current_class.abilities["3"]).to_string(),
+                            )
+                            .await;
+                        }
+                        '4' => {
+                            attack(
+                                client.clone(),
+                                id,
+                                client_player.clone(),
+                                target.clone(),
+                                "special".to_string(),
+                                format!("{}", self.current_class.abilities["4"]).to_string(),
+                            )
+                            .await;
+                        }
+                        '5' => {
+                            attack(
+                                client.clone(),
+                                id,
+                                client_player.clone(),
+                                target.clone(),
+                                "special".to_string(),
+                                format!("{}", self.current_class.abilities["5"]).to_string(),
+                            )
+                            .await;
                         }
                         _ => {}
-                    },
-                    '\t' => {
-                        target_index += 1;
-                        if target_index > targetable_entities.values().len() - 1 {
-                            target_index = 0;
+                    }
+                    /*window.mv(0,0);
+                        window.addstr(&format!("{:?}", c));
+                    */
+                }
+                Some(Input::KeyDC) => self.running = false,
+                Some(input) => {}
+                None => (),
+            }
+            let mut do_not_move = false;
+            match self.move_dir {
+                'w' => {
+                    if self.input_change > INPUT_DELAY {
+                        self.input_change = 0;
+                    } else {
+                        do_not_move = true;
+                    }
+                    if !do_not_move {
+                        move_player(client.clone(), id, "up".to_string(), client_player.clone())
+                            .await;
+                        client_player.y -= 1;
+                        client_player.relative_y -= 1;
+
+                        if client_player.render_y < EDGE_Y as i32 {
+                            self.camera.y -= 1;
                         }
                     }
-                    'c' => {
-                        attacking = !attacking;
-                    },
-                    '1' => {
-                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["1"]).to_string()).await;
-                    },
-                    '2' => {
-                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["2"]).to_string()).await;
-                    },
-                    '3' => {
-                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["3"]).to_string()).await;
-                    },
-                    '4' => {
-                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["4"]).to_string()).await;
-                    },
-                    '5' => {
-                        attack(client.clone(), id, client_player.clone(), target.clone(),"special".to_string(), format!("{}", current_class.abilities["5"]).to_string()).await;
-                    },
-                    _ => {}
                 }
-                /*window.mv(0,0);
-                    window.addstr(&format!("{:?}", c));
-                */
-            }
-            Some(Input::KeyDC) => running = false,
-            Some(input) => {}
-            None => (),
-        }
-        let mut do_not_move = false;
-        match move_dir {
-            'w' => {
-                if input_change > INPUT_DELAY {
-                    input_change = 0;
-                } else {
-                    do_not_move = true;
-                }
-                if !do_not_move {
-                    move_player(client.clone(), id, "up".to_string(), client_player.clone()).await;
-                    client_player.y -= 1;
-                    client_player.relative_y -= 1;
+                'a' => {
+                    if self.input_change > INPUT_DELAY {
+                        self.input_change = 0;
+                    } else {
+                        do_not_move = true;
+                    }
+                    if !do_not_move {
+                        move_player(
+                            client.clone(),
+                            id,
+                            "left".to_string(),
+                            client_player.clone(),
+                        )
+                        .await;
+                        client_player.x -= 1;
+                        client_player.relative_x -= 1;
 
-                    if client_player.render_y < EDGE_Y as i32 {
-                        camera.y -= 1;
+                        if client_player.render_x < EDGE_X as i32 {
+                            self.camera.x -= 1;
+                        }
+                    }
+                }
+                's' => {
+                    if self.input_change > INPUT_DELAY {
+                        self.input_change = 0;
+                    } else {
+                        do_not_move = true;
+                    }
+                    if !do_not_move {
+                        move_player(
+                            client.clone(),
+                            id,
+                            "down".to_string(),
+                            client_player.clone(),
+                        )
+                        .await;
+                        client_player.y += 1;
+                        client_player.relative_y += 1;
+
+                        if client_player.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
+                            self.camera.y += 1;
+                        }
+                    }
+                }
+                'd' => {
+                    if self.input_change > INPUT_DELAY {
+                        self.input_change = 0;
+                    } else {
+                        do_not_move = true;
+                    }
+                    if !do_not_move {
+                        move_player(
+                            client.clone(),
+                            id,
+                            "right".to_string(),
+                            client_player.clone(),
+                        )
+                        .await;
+                        client_player.x += 1;
+                        client_player.relative_x += 1;
+
+                        if client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
+                            self.camera.x += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+            match self.move_dir {
+                'd' => {
+                    if client_player.relative_x == current_world_properties.chunk_size as i32 {
+                        client_player.chunk_x += 1;
+                        refresh_tiles = true;
+                    }
+                }
+                's' => {
+                    if client_player.relative_y == current_world_properties.chunk_size as i32 {
+                        client_player.chunk_y += 1;
+                        refresh_tiles = true;
+                    }
+                }
+                'a' => {
+                    if client_player.relative_x == -1 {
+                        client_player.chunk_x -= 1;
+                        refresh_tiles = true;
+                    }
+                }
+                'w' => {
+                    if client_player.relative_y == -1 {
+                        client_player.chunk_y -= 1;
+                        refresh_tiles = true;
+                    }
+                }
+                _ => {}
+            }
+            if !self.endless_move_mode {
+                self.move_dir = '?';
+            }
+            if refresh_tiles {
+                current_chunk_tiles = Vec::new();
+                for i in 0..self.render_y * 2 {
+                    current_chunk_tiles.push(Vec::new());
+                    for j in 0..self.render_x * 2 {
+                        let r_i = i as i32 - self.render_y as i32;
+                        let r_j = j as i32 - self.render_x as i32;
+                        let mut c_x = client_player.chunk_x + r_j as i32;
+                        let mut c_y = client_player.chunk_y + r_i as i32;
+                        if c_x < 0 {
+                            c_x = 0;
+                        }
+                        if c_y < 0 {
+                            c_y = 0;
+                        }
+                        if c_x > (current_world_properties.world_width - 1) as i32 {
+                            c_x = current_world_properties.world_width as i32 - 1;
+                        }
+                        if c_y > (current_world_properties.world_height - 1) as i32 {
+                            c_y = current_world_properties.world_width as i32 - 1;
+                        }
+                        current_chunk_tiles[i as usize]
+                            .push(load_tiles(client.clone(), c_x as i32, c_y as i32).await);
                     }
                 }
             }
-            'a' => {
-                if input_change > INPUT_DELAY {
-                    input_change = 0;
-                } else {
-                    do_not_move = true;
-                }
-                if !do_not_move {
-                    move_player(
+            let delta_as_millis = delta.as_millis() as u64;
+            self.input_change += delta_as_millis as u64;
+            if self.attacking {
+                autoattack_change += delta_as_millis;
+                special_attack_change += delta_as_millis;
+                if autoattack_change > autoattack_time {
+                    attack(
                         client.clone(),
                         id,
-                        "left".to_string(),
                         client_player.clone(),
+                        target.clone(),
+                        "auto".to_string(),
+                        "".to_string(),
                     )
                     .await;
-                    client_player.x -= 1;
-                    client_player.relative_x -= 1;
+                    autoattack_change = 0;
+                }
+            }
+            // window.addstr(format!("{}", self.input_change));
+            // draw hud
+            window.refresh();
+            window.erase();
+            thread::sleep(time::Duration::from_millis(REFRESH_TIME));
+        }
 
-                    if client_player.render_x < EDGE_X as i32 {
-                        camera.x -= 1;
-                    }
-                }
-            }
-            's' => {
-                if input_change > INPUT_DELAY {
-                    input_change = 0;
-                } else {
-                    do_not_move = true;
-                }
-                if !do_not_move {
-                    move_player(
-                        client.clone(),
-                        id,
-                        "down".to_string(),
-                        client_player.clone(),
-                    )
-                    .await;
-                    client_player.y += 1;
-                    client_player.relative_y += 1;
-
-                    if client_player.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
-                        camera.y += 1;
-                    }
-                }
-            }
-            'd' => {
-                if input_change > INPUT_DELAY {
-                    input_change = 0;
-                } else {
-                    do_not_move = true;
-                }
-                if !do_not_move {
-                    move_player(
-                        client.clone(),
-                        id,
-                        "right".to_string(),
-                        client_player.clone(),
-                    )
-                    .await;
-                    client_player.x += 1;
-                    client_player.relative_x += 1;
-
-                    if client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
-                        camera.x += 1;
-                    }
-                }
-            }
-            _ => {}
-        }
-        match move_dir {
-            'd' => {
-                if client_player.relative_x == current_world_properties.chunk_size as i32 {
-                    client_player.chunk_x += 1;
-                    refresh_tiles = true;
-                }
-            }
-            's' => {
-                if client_player.relative_y == current_world_properties.chunk_size as i32 {
-                    client_player.chunk_y += 1;
-                    refresh_tiles = true;
-                }
-            }
-            'a' => {
-                if client_player.relative_x == -1 {
-                    client_player.chunk_x -= 1;
-                    refresh_tiles = true;
-                }
-            }
-            'w' => {
-                if client_player.relative_y == -1 {
-                    client_player.chunk_y -= 1;
-                    refresh_tiles = true;
-                }
-            }
-            _ => {}
-        }
-        if !endless_move_mode {
-            move_dir = '?';
-        }
-        if refresh_tiles {
-            current_chunk_tiles = Vec::new();
-            for i in 0..render_y * 2 {
-                current_chunk_tiles.push(Vec::new());
-                for j in 0..render_x * 2 {
-                    let r_i = i as i32 - render_y as i32;
-                    let r_j = j as i32 - render_x as i32;
-                    let mut c_x = client_player.chunk_x + r_j as i32;
-                    let mut c_y = client_player.chunk_y + r_i as i32;
-                    if c_x < 0 {
-                        c_x = 0;
-                    }
-                    if c_y < 0 {
-                        c_y = 0;
-                    }
-                    if c_x > (current_world_properties.world_width - 1) as i32 {
-                        c_x = current_world_properties.world_width as i32 - 1;
-                    }
-                    if c_y > (current_world_properties.world_height - 1) as i32 {
-                        c_y = current_world_properties.world_width as i32 - 1;
-                    }
-                    current_chunk_tiles[i]
-                        .push(load_tiles(client.clone(), c_x as i32, c_y as i32).await);
-                }
-            }
-        }
-        let delta_as_millis = delta.as_millis() as u64;
-        input_change += delta_as_millis as u64;
-        if attacking {
-            autoattack_change += delta_as_millis;
-            special_attack_change += delta_as_millis;
-            if autoattack_change > autoattack_time {
-                attack(client.clone(), id, client_player.clone(), target.clone(),"auto".to_string(), "".to_string()).await;
-                autoattack_change = 0;
-            }
-        }
-        // window.addstr(format!("{}", input_change));
-        // draw hud
-        window.refresh();
-        window.erase();
-        thread::sleep(time::Duration::from_millis(REFRESH_TIME));
+        endwin();
     }
-
-    endwin();
 }
 async fn attack(
     client: reqwest::Client,
@@ -906,7 +971,7 @@ async fn attack(
             params: HashMap::from([
                 ("command".to_string(), "attack".to_string()),
                 ("type".to_string(), attack_type),
-                ("ability".to_string(),ability),
+                ("ability".to_string(), ability),
                 ("id".to_string(), id.to_string()),
                 ("target_id".to_string(), format!("{}", target.id)),
                 (
