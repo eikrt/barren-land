@@ -318,6 +318,7 @@ impl Client {
             id = calculate_hash(&to_hashed);
         }
         if !load_check_if_client_with_id(
+            // if not client with id in server, spawn
             client.clone(),
             username.clone(),
             id,
@@ -389,6 +390,7 @@ impl Client {
             let mut current_chunk_entities = Vec::new();
             let mut targetable_entities: HashMap<u64, Entity> = HashMap::new();
             if self.first_loop {
+                // load world map tiles if first loop
                 for i in 0..self.current_world_properties.world_width {
                     self.current_world_map.push(Vec::new());
                     for j in 0..self.current_world_properties.world_height {
@@ -399,6 +401,7 @@ impl Client {
             }
             self.first_loop = false;
             if refresh_entities {
+                // fetch entities from server
                 for i in 0..self.render_y * 2 {
                     current_chunk_entities.push(Vec::new());
                     for j in 0..self.render_x * 2 {
@@ -424,7 +427,7 @@ impl Client {
                     }
                 }
             }
-            let mut targetable_entities_sorted = Vec::new();
+            let mut targetable_entities_sorted = Vec::new(); // sort targetable_entities into vector by x and y
             for e in targetable_entities.values() {
                 targetable_entities_sorted.push(e);
             }
@@ -539,12 +542,14 @@ impl Client {
                         - self.camera.x
                         + MARGIN_X;
                     let mut attributes = Attributes::new();
-                    attributes.set_blink(true);
-                    window.attron(attributes);
-                    window.mv(rel_y, rel_x);
-                    window.addch('X');
-                    attributes.set_blink(false);
-                    window.attrset(attributes);
+                    if self.target.entity_type != "no entity".to_string() {
+                        attributes.set_blink(true);
+                        window.attron(attributes);
+                        window.mv(rel_y, rel_x);
+                        window.addch('X');
+                        attributes.set_blink(false);
+                        window.attrset(attributes);
+                    }
                     // draw hud
                     for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
                         for j in HUD_X..(HUD_X + HUD_WIDTH) {
@@ -634,6 +639,10 @@ impl Client {
                 }
                 _ => {}
             }
+            if targetable_entities.contains_key(&self.target.id) {
+                // refresh target
+                self.target = targetable_entities[&self.target.id].clone();
+            }
             match window.getch() {
                 Some(Input::Character(c)) => {
                     //    window.addch(c);
@@ -673,6 +682,13 @@ impl Client {
                                 if self.target_index > targetable_entities_sorted.len() - 1 {
                                     self.target_index = targetable_entities_sorted.len() - 1;
                                 }
+                                if targetable_entities_sorted[self.target_index].clone().id != id {
+                                    self.target =
+                                        targetable_entities_sorted[self.target_index].clone();
+                                }
+                            }
+
+                            if targetable_entities_sorted.len() > 0 {
                                 if targetable_entities_sorted[self.target_index].clone().id != id {
                                     self.target =
                                         targetable_entities_sorted[self.target_index].clone();
@@ -901,11 +917,6 @@ impl Client {
                 _ => {}
             }
 
-            if targetable_entities_sorted.len() > 0 {
-                if targetable_entities_sorted[self.target_index].clone().id != id {
-                    self.target = targetable_entities_sorted[self.target_index].clone();
-                }
-            }
             if !self.endless_move_mode {
                 self.move_dir = '?';
             }

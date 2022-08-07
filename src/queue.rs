@@ -10,6 +10,23 @@ use std::fs;
 use std::io::prelude::*;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+pub struct MoveSet {
+     directions: Vec<String>,
+}
+impl Default for MoveSet {
+    fn default() -> MoveSet {
+        MoveSet {
+            directions: Vec::from(["up".to_string(),"down".to_string(),"left".to_string(),"right".to_string()]),
+        }
+    }
+}
+impl MoveSet {
+    fn get_direction(&self) -> String {
+        let mut rng = rand::thread_rng();
+        let index = rng.gen_range(0..self.directions.len());
+        return self.directions[index].clone();
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ActionQueue {
@@ -39,32 +56,55 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
         .as_millis();
     let mut state = &mut *(q.lock().unwrap());
     let client_ids = open_client_ids_to_struct();
+    let w_p = open_world_properties_to_struct();
     for (username, ci) in client_ids.ids.iter() {
-    let chunk_entities = open_entities_as_struct(ci.chunk_x, ci.chunk_y);
-    for (e_id, entity) in chunk_entities.entities.iter() {
-        if entity.entity_type == "scarab".to_string() {
-            let action = PostData {
-                params: HashMap::from([
-                    ("command".to_string(), "move".to_string()),
-                    ("move_dir".to_string(), "right".to_string()),
-                    ("id".to_string(), entity.id.to_string()),
-                    (
-                        "chunk_x".to_string(),
-                        format!("{}", entity.chunk_x).to_string(),
-                    ),
-                    (
-                        "chunk_y".to_string(),
-                        format!("{}", entity.chunk_y).to_string(),
-                    ),
-                ]),
-            };
-            state.queue.push(action);
+        let mut lx = ci.chunk_x - 1;
+        let mut ly = ci.chunk_y - 1;
+        let mut rx = ci.chunk_x + 2;
+        let mut ry = ci.chunk_y + 2;
+        if lx < 0 {
+            lx = 0;
+        }
+        if ly < 0 {
+            ly = 0;
+        }
+        if rx > w_p.world_width as i32 - 1 {
+            rx = w_p.world_width as i32 - 1;
+        }
+        if ry > w_p.world_height as i32 - 1 {
+            ry = w_p.world_height as i32 - 1;
+        }
+        for cy in ly..ry {
+            for cx in lx..rx {
+                let chunk_entities = open_entities_as_struct(cx, cy);
+                for (e_id, entity) in chunk_entities.entities.iter() {
+                    let moveset = MoveSet::default();
+                    match entity.entity_type.as_str() {
+                        "scarab" => {
+                            let action = PostData {
+                                params: HashMap::from([
+                                    ("command".to_string(), "move".to_string()),
+                                    ("move_dir".to_string(), moveset.get_direction()),
+                                    ("id".to_string(), entity.id.to_string()),
+                                    (
+                                        "chunk_x".to_string(),
+                                        format!("{}", cx).to_string(),
+                                    ),
+                                    (
+                                        "chunk_y".to_string(),
+                                        format!("{}", cy).to_string(),
+                                    ),
+                                ]),
+                            };
+                            state.queue.push(action);
+                        }
+                        _ => {}
+                    };
+                }
+            }
         }
     }
-
-    }
 }
-
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
     let mut state = &mut *(q.lock().unwrap());
     if state.queue.len() > 0 {
