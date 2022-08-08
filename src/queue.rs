@@ -1,15 +1,13 @@
 use crate::server::*;
-use crate::world::*;
+use crate::entities::*;
 use actix_web::*;
-use once_cell::sync::Lazy;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fs;
 use std::io::prelude::*;
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Mutex};
+use crate::classes::*;
 pub struct MoveSet {
      directions: Vec<String>,
 }
@@ -46,18 +44,14 @@ pub fn add_to_queue(q: web::Data<Mutex<ActionQueue>>, data: PostData) {
     let default_mutex = Mutex::new(default_queue);
     let default_data = web::Data::new(default_mutex);
     let default_value = default_data.lock().unwrap();
-    let mut state = &mut *(q.lock().unwrap_or(default_value));
+    let state = &mut *(q.lock().unwrap_or(default_value));
     state.queue.push(data);
 }
 pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
-    let time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let mut state = &mut *(q.lock().unwrap());
+    let state = &mut *(q.lock().unwrap());
     let client_ids = open_client_ids_to_struct();
     let w_p = open_world_properties_to_struct();
-    for (username, ci) in client_ids.ids.iter() {
+    for (_username, ci) in client_ids.ids.iter() {
         let mut lx = ci.chunk_x - 1;
         let mut ly = ci.chunk_y - 1;
         let mut rx = ci.chunk_x + 2;
@@ -77,7 +71,7 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
         for cy in ly..ry {
             for cx in lx..rx {
                 let chunk_entities = open_entities_as_struct(cx, cy);
-                for (e_id, entity) in chunk_entities.entities.iter() {
+                for (_e_id, entity) in chunk_entities.entities.iter() {
                     let moveset = MoveSet::default();
                     match entity.entity_type.as_str() {
                         "scarab" => {
@@ -106,7 +100,7 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
     }
 }
 pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
-    let mut state = &mut *(q.lock().unwrap());
+    let state = &mut *(q.lock().unwrap());
     if state.queue.len() > 0 {
         println!("in queue: {}", state.queue.len());
         let last = &state.queue[0];
@@ -116,10 +110,6 @@ pub fn execute_queue(q: web::Data<Mutex<ActionQueue>>) {
     }
 }
 pub fn execute_action(action: PostData) {
-    let time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
     let mut rng = rand::thread_rng();
     let w_p = open_world_properties_to_struct();
     let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
@@ -204,7 +194,6 @@ pub fn execute_action(action: PostData) {
             let e_clone = e.clone();
 
             let target_id = action.params["target_id"].parse::<u64>().unwrap();
-            let mut default_entity = Entity::default();
             if action_entities.entities.contains_key(&target_id) {
                 let target_entity = action_entities.entities.get_mut(&target_id).unwrap();
                 let dist = ((e_clone.y as f32 - target_entity.y as f32).powf(2.0)
@@ -256,7 +245,7 @@ pub fn execute_action(action: PostData) {
     }
     write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
 }
-pub fn update_entity_list(id: u64, entity: Entity) {
+pub fn update_entity_list(_id: u64, entity: Entity) {
     let mut u_e = open_client_ids_to_struct();
     match u_e.ids.get_mut(&entity.name) {
         Some(mut e) => {

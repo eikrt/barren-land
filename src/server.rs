@@ -1,8 +1,9 @@
 use crate::queue::*;
 use crate::world::*;
+use crate::entities::*;
+use crate::tiles::*;
 use actix_web::*;
 use bincode;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -76,7 +77,6 @@ pub fn open_entities_as_struct(x: i32, y: i32) -> Entities {
         x: 0,
         y: 0,
     });
-    let encoded = serde_json::to_string(&decoded).unwrap();
     return decoded;
 }
 pub fn open_world_properties() -> String {
@@ -97,14 +97,12 @@ pub fn open_map_tile_for_chunks_as_struct(x: i32, y: i32) -> WorldMapTile {
     let path = format!("world/chunks/chunk_{}_{}/world_map.dat", x, y);
     let body = fs::read(path).unwrap();
     let decoded: WorldMapTile = bincode::deserialize(&body).unwrap();
-    let encoded = serde_json::to_string(&decoded).unwrap();
     return decoded;
 }
 pub fn open_client_ids_to_struct() -> ClientIds {
     let path = "world/client_ids.dat";
     let body = fs::read(path).unwrap_or(Vec::new());
     let decoded: ClientIds = bincode::deserialize(&body).unwrap_or(ClientIds::default());
-    let encoded = serde_json::to_string(&decoded).unwrap();
     return decoded;
 }
 pub fn open_client_ids() -> String {
@@ -147,7 +145,7 @@ pub fn write_client_ids_to_file(client_ids: ClientIds) {
 
     ids_file.write_all(&encoded);
 }
-pub fn check_if_client_exists(username: String, id: u64) -> bool {
+pub fn check_if_client_exists(username: String, _id: u64) -> bool {
     let mut exists = false;
     let ids = open_client_ids_to_struct();
     if ids.ids.contains_key(&username) {
@@ -186,18 +184,12 @@ async fn client_exists(data: web::Path<IdQueryData>) -> impl Responder {
 }
 #[get("/search_entity/{username}")]
 async fn search_entity(data: web::Path<EntityListQueryData>) -> impl Responder {
-    let mut contents = search_entity_by_username_as_string(data.username.clone());
+    let contents = search_entity_by_username_as_string(data.username.clone());
     HttpResponse::Ok().body(contents)
 }
 #[post("/queue")]
 async fn post_queue(q: web::Data<Mutex<ActionQueue>>, post: web::Json<PostData>) -> impl Responder {
     add_to_queue(q, queue_to_object(post));
-    HttpResponse::Ok()
-}
-#[post("/handle_queue")]
-async fn handle_queue(q: web::Data<Mutex<ActionQueue>>) -> impl Responder {
-    // execute_queue(q.lock().unwrap());
-    thread::sleep(time::Duration::from_millis(50));
     HttpResponse::Ok()
 }
 #[actix_web::main] // or #[tokio::main]
@@ -224,7 +216,6 @@ pub async fn main() -> std::io::Result<()> {
             .service(tiles)
             .service(entities)
             .service(post_queue)
-            .service(handle_queue)
             .service(world_map)
             .service(search_entity)
     })

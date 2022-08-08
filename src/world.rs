@@ -1,263 +1,15 @@
-use crate::server::{open_map_tile_for_chunks_as_struct, write_client_ids_to_file, ClientIds};
+use crate::server::*;
 use bincode;
-use rand::seq::IteratorRandom;
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simdnoise::*;
 use std::collections::HashMap;
-use std::env;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Tile {
-    pub x: i32,
-    pub y: i32,
-    pub h: f32,
-    pub relative_x: i32,
-    pub relative_y: i32,
-    pub chunk_x: i32,
-    pub chunk_y: i32,
-    pub tile_type: String,
-}
-impl Default for Tile {
-    fn default() -> Tile {
-        Tile {
-            x: 1,
-            y: 1,
-            h: 1.0,
-            relative_x: 1,
-            relative_y: 1,
-            chunk_x: 1,
-            chunk_y: 1,
-            tile_type: "sand".to_string()
-        }
-    }
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Entity {
-    pub x: i32,
-    pub y: i32,
-    pub hp: i32,
-    pub energy: i32,
-    pub experience: i32,
-    pub level: i32,
-    pub id: u64,
-    pub name: String,
-    pub relative_x: i32,
-    pub relative_y: i32,
-    pub chunk_x: i32,
-    pub chunk_y: i32,
-    pub entity_type: String,
-    pub stats: CharacterStats,
-}
-impl Default for Entity {
-    fn default() -> Entity {
-        Entity {
-            x: 1,
-            y: 1,
-            hp: 100,
-            energy: 100,
-            experience: 0,
-            level: 1,
-            relative_x: 1,
-            relative_y: 1,
-            chunk_x: 1,
-            chunk_y: 1,
-            entity_type: "no entity".to_string(),
-            id: 0,
-            name: "no name".to_string(),
-            stats: CharacterStats::default(),
-        }
-    }
-}
-pub trait Scarab {
-    fn scarab(x: i32, y: i32, relative_x: i32, relative_y: i32, chunk_x: i32, chunk_y: i32, id: u64, entity_type: String, name: String) -> Entity;
-}
-impl Scarab for Entity {
-    fn scarab(x: i32, y: i32, relative_x: i32, relative_y: i32, chunk_x: i32, chunk_y: i32, id: u64, entity_type: String, name: String) -> Entity {
-        Entity {
-            x: x,
-            y: y,
-            hp: 100,
-            energy: 100,
-            experience: 0,
-            level: 1,
-            relative_x: relative_x,
-            relative_y: relative_y,
-            chunk_x: chunk_x,
-            chunk_y: chunk_y,
-            entity_type: entity_type,
-            id: id,
-            name: name,
-            stats: CharacterStats::default(),
-        }
-    }
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CharacterStats {
-    pub abilities: HashMap<String, String>,
-    pub stats: HashMap<String, u8>,
-    pub creature_type: String,
-}
-impl Default for CharacterStats{
-    fn default() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Gatherer {
-    fn gatherer() -> CharacterStats;
-}
-impl Gatherer for CharacterStats {
-    fn gatherer() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"double kick".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Bard{
-    fn bard() -> CharacterStats;
-}
-impl Bard for CharacterStats {
-    fn bard() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Hunter{
-    fn hunter() -> CharacterStats;
-}
-impl Hunter for CharacterStats {
-    fn hunter() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Farmer{
-    fn farmer() -> CharacterStats;
-}
-impl Farmer for CharacterStats {
-    fn farmer() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Fisher {
-    fn fisher() -> CharacterStats;
-}
-impl Fisher for CharacterStats {
-    fn fisher() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-pub trait Sentinel {
-    fn sentinel() -> CharacterStats;
-}
-impl Sentinel for CharacterStats {
-    fn sentinel() -> CharacterStats{
-        CharacterStats{
-            abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
-            ]),
-            stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
-            ]),
-            creature_type: "".to_string(),
-        }
-    }
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct WorldMapTile {
-    pub x: i32,
-    pub y: i32,
-    pub chunk_type: String,
-}
+use crate::entities::*;
+use crate::tiles::*;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Biome {
     biome: String,
@@ -266,29 +18,6 @@ pub struct Biome {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorldMap {
     pub chunks: Vec<Vec<WorldMapTile>>,
-}
-impl Entity {
-    pub fn move_dir(&mut self, dir: String) {
-        match dir.as_str() {
-            "up" => {
-                self.relative_y -= 1;
-                self.y -= 1;
-            }
-            "down" => {
-                self.relative_y += 1;
-                self.y += 1;
-            }
-            "left" => {
-                self.relative_x -= 1;
-                self.x -= 1;
-            }
-            "right" => {
-                self.relative_x += 1;
-                self.x += 1;
-            }
-            _ => {}
-        }
-    }
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorldProperties {
@@ -328,47 +57,22 @@ impl Default for Tiles {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Entities {
-    pub entities: HashMap<u64, Entity>,
-    pub x: i32,
-    pub y: i32,
-}
-impl Default for Entities {
-    fn default() -> Entities {
-        Entities {
-            entities: HashMap::new(),
-            x: 0,
-            y: 0,
-        }
-    }
-}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct World {
     pub tilemap: Vec<Vec<Tiles>>,
 }
 fn get_generated_chunk(
     seed: i32,
-    sealevel: f32,
+    _sealevel: f32,
     chunk_size: u32,
     world_width: u32,
     world_height: u32,
     x: i32,
     y: i32,
 ) -> (Tiles, Entities) {
-    let mut tiles = Vec::new();
-    let mut entities = HashMap::new();
+    let mut tiles_vec = Vec::new();
+    let mut entities_map = HashMap::new();
     let mut rng = rand::thread_rng();
-    let ground_noise = NoiseBuilder::fbm_2d(
-        (chunk_size * world_width).try_into().unwrap(),
-        (chunk_size * world_height).try_into().unwrap(),
-    )
-    .with_freq(0.15)
-    .with_octaves(9.0 as u8)
-    .with_gain(2.0)
-    .with_seed(seed)
-    .with_lacunarity(0.8)
-    .generate_scaled(0.0, 512.0);
     let height_noise = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
@@ -377,16 +81,6 @@ fn get_generated_chunk(
     .with_octaves(8.0 as u8)
     .with_gain(2.0)
     .with_seed(seed * 2)
-    .with_lacunarity(0.8)
-    .generate_scaled(0.0, 512.0);
-    let npc_noise = NoiseBuilder::fbm_2d(
-        (chunk_size * world_width).try_into().unwrap(),
-        (chunk_size * world_height).try_into().unwrap(),
-    )
-    .with_freq(0.85)
-    .with_octaves(8.0 as u8)
-    .with_gain(2.0)
-    .with_seed(seed * 3)
     .with_lacunarity(0.8)
     .generate_scaled(0.0, 512.0);
     let biome_noise_1 = NoiseBuilder::fbm_2d(
@@ -439,7 +133,6 @@ fn get_generated_chunk(
     .with_seed(seed * 8)
     .with_lacunarity(0.2)
     .generate_scaled(0.0, 512.0);
-    let world_perlin_coord = (x + y * world_width as i32) as usize;
     let biome_threshold = 256.0;
     let mut biome_counts: HashMap<String, i32> = HashMap::new();
 
@@ -450,11 +143,11 @@ fn get_generated_chunk(
     biome_counts.insert("rock_desert".to_string(), 0);
     biome_counts.insert("barren_land".to_string(), 0);
     for i in 0..chunk_size {
-        tiles.push(Vec::new());
+        tiles_vec.push(Vec::new());
         for j in 0..chunk_size {
             let mut biome = "barren_land".to_string();
-            let tile_x = (j as i32 + x * chunk_size as i32);
-            let tile_y = (i as i32 + y * chunk_size as i32);
+            let tile_x = j as i32 + x * chunk_size as i32;
+            let tile_y = i as i32 + y * chunk_size as i32;
             let perlin_coord =
                 ((tile_x + tile_y * world_width as i32 * chunk_size as i32) as i32) as usize;
             let mut tile = Tile {
@@ -487,7 +180,7 @@ fn get_generated_chunk(
                         tile.tile_type = "dune_sand".to_string();
                         let biome_entity = Entity::scarab(tile_x, tile_y, j as i32, i as i32, x, y, id, "scarab".to_string(), "scarab".to_string());
                         if rng.gen_range(0..32) == 1 {
-                            entities.insert(id, biome_entity);
+                            entities_map.insert(id, biome_entity);
                         }
                     },
                     "ash_desert" => tile.tile_type = "ash".to_string(),
@@ -509,11 +202,7 @@ fn get_generated_chunk(
 
             };
             */
-            tiles[i as usize].push(tile);
-            if npc_noise[perlin_coord] < 300.0 {
-                let id: u32 = rng.gen::<u32>();
-                //entities.insert(id, entity);
-            }
+            tiles_vec[i as usize].push(tile);
         }
     }
     let max_biomes = biome_counts.values().max().unwrap();
@@ -523,18 +212,18 @@ fn get_generated_chunk(
             biome = key.to_string();
         }
     }
-    let tiles = Tiles {
-        tiles: tiles,
+    let tiles_ret = Tiles {
+        tiles: tiles_vec,
         x: x,
         y: y,
         biome: biome,
     };
-    let entities = Entities {
-        entities: entities,
+    let entities_ret = Entities {
+        entities: entities_map,
         x: x,
         y: y,
     };
-    return (tiles, entities);
+    return (tiles_ret, entities_ret);
 }
 pub fn generate_world(
     seed: i32,
@@ -556,7 +245,7 @@ pub fn write_world_properties(
     sealevel: f32,
     name: String,
 ) {
-    let world_properties = WorldProperties {
+    let w_p = WorldProperties {
         seed: seed,
         chunk_size: chunk_size,
         world_width: world_width,
@@ -565,16 +254,15 @@ pub fn write_world_properties(
         name: name,
     };
     let mut world_properties_file = fs::File::create("world/world_properties.dat").unwrap();
-    let encoded: Vec<u8> = bincode::serialize(&world_properties).unwrap();
+    let encoded: Vec<u8> = bincode::serialize(&w_p).unwrap();
     world_properties_file.write_all(&encoded);
 }
-fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, sealevel: f32) {
-    let mut world_map = WorldMap { chunks: Vec::new() };
+fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, _sealevel: f32) {
     (0..world_height).into_par_iter().for_each(|i| {
         (0..world_width).into_par_iter().for_each(|j| {
             let (generated_tiles, generated_entities) = get_generated_chunk(
                 seed,
-                sealevel,
+                _sealevel,
                 chunk_size,
                 world_width,
                 world_height,

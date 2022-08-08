@@ -1,30 +1,17 @@
 use crate::client_utils::*;
-use crate::entities::Player;
 use crate::queue::PostData;
-use crate::world::{
-    CharacterStats, Entities, Entity, Tile, Tiles, World, WorldMap, WorldMapTile, WorldProperties,
-};
-use bincode;
-use once_cell::sync::Lazy;
+use crate::world::*;
+use crate::entities::*;
+use crate::tiles::*;
+use crate::classes::{CharacterStats};
 use pancurses::colorpair::ColorPair;
 use pancurses::*;
 use rand::Rng;
-use std::collections::hash_map::DefaultHasher;
 use std::env;
-use std::fs;
-use std::fs::File;
-use std::hash::{Hash, Hasher};
-use std::io;
-use std::io::prelude::*;
-use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::TryRecvError;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{collections::HashMap, sync::Mutex};
+use std::time::{SystemTime};
+use std::{collections::HashMap};
 use std::{thread, time};
-
 use crate::server::*;
-use serde_json;
 const REFRESH_TIME: u64 = 10;
 const INPUT_DELAY: u64 = 500;
 const SCREEN_WIDTH: u8 = 64;
@@ -38,11 +25,7 @@ const HUD_HEIGHT: u8 = 12;
 const MARGIN_X: i32 = 0;
 const MARGIN_Y: i32 = 1;
 #[derive(Clone)]
-pub struct ui_tile {
-    symbol: String,
-    color: u8,
-}
-pub struct ui_entity {
+pub struct UiTile {
     symbol: String,
     color: u8,
 }
@@ -81,10 +64,10 @@ pub struct Client {
     pub target: Entity,
     pub has_target: bool,
     pub camera: Camera,
-    pub ui_tiles: HashMap<String, ui_tile>,
-    pub ui_entities: HashMap<String, ui_tile>,
-    pub ui_hud: HashMap<String, ui_tile>,
-    pub ui_world_map_tiles: HashMap<String, ui_tile>,
+    pub ui_tiles: HashMap<String, UiTile>,
+    pub ui_entities: HashMap<String, UiTile>,
+    pub ui_hud: HashMap<String, UiTile>,
+    pub ui_world_map_tiles: HashMap<String, UiTile>,
     pub current_chunk_tiles: Vec<Vec<Tiles>>,
     pub current_world_map: Vec<Vec<WorldMapTile>>,
     pub first_loop: bool,
@@ -141,42 +124,42 @@ impl Default for Client {
             ui_world_map_tiles: HashMap::from([
                 (
                     "barren_land".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: ".".to_string(),
                         color: 1,
                     },
                 ),
                 (
                     "rock_desert".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "*".to_string(),
                         color: 9,
                     },
                 ),
                 (
                     "salt_desert".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "_".to_string(),
                         color: 7,
                     },
                 ),
                 (
                     "ice_desert".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "~".to_string(),
                         color: 7,
                     },
                 ),
                 (
                     "ash_desert".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "`".to_string(),
                         color: 7,
                     },
                 ),
                 (
                     "dunes".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "~".to_string(),
                         color: 1,
                     },
@@ -185,21 +168,21 @@ impl Default for Client {
             ui_hud: HashMap::from([
                 (
                     "border".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: " ".to_string(),
                         color: 6,
                     },
                 ),
                 (
                     "hud_body".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: " ".to_string(),
                         color: 5,
                     },
                 ),
                 (
                     "hud_text".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: " ".to_string(),
                         color: 3,
                     },
@@ -208,63 +191,63 @@ impl Default for Client {
             ui_tiles: HashMap::from([
                 (
                     "sand".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: ".".to_string(),
                         color: 1,
                     },
                 ),
                 (
                     "ice".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: ".".to_string(),
                         color: 7,
                     },
                 ),
                 (
                     "dune_sand".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "~".to_string(),
                         color: 1,
                     },
                 ),
                 (
                     "ash".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "`".to_string(),
                         color: 9,
                     },
                 ),
                 (
                     "salt".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "_".to_string(),
                         color: 7,
                     },
                 ),
                 (
                     "gravel".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "*".to_string(),
                         color: 9,
                     },
                 ),
                 (
                     "rock".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "^".to_string(),
                         color: 1,
                     },
                 ),
                 (
                     "water".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "~".to_string(),
                         color: 2,
                     },
                 ),
                 (
                     "grass".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: ".".to_string(),
                         color: 4,
                     },
@@ -273,28 +256,28 @@ impl Default for Client {
             ui_entities: HashMap::from([
                 (
                     "ogre".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "O".to_string(),
                         color: 3,
                     },
                 ),
                 (
                     "scarab".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "S".to_string(),
                         color: 9,
                     },
                 ),
                 (
                     "no entity".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: " ".to_string(),
                         color: 3,
                     },
                 ),
                 (
                     "gatherer".to_string(),
-                    ui_tile {
+                    UiTile {
                         symbol: "g".to_string(),
                         color: 3,
                     },
@@ -374,7 +357,7 @@ impl Client {
         init_pair(7, COLOR_BLACK, COLOR_WHITE);
         init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
         init_pair(9, COLOR_WHITE, COLOR_BLACK);
-        let mut server_clientid: ClientId =
+        let server_clientid: ClientId =
             load_search_entity_clientid(client.clone(), username.clone(), id).await;
         self.client_player.chunk_x = server_clientid.chunk_x;
         self.client_player.chunk_y = server_clientid.chunk_y;
@@ -386,7 +369,7 @@ impl Client {
             - self.current_world_properties.chunk_size as i32 / 4;
         while self.running {
             let mut refresh_tiles = self.first_loop;
-            let mut refresh_entities = true;
+            let refresh_entities = true;
             let mut current_chunk_entities = Vec::new();
             let mut targetable_entities: HashMap<u64, Entity> = HashMap::new();
             if self.first_loop {
@@ -439,10 +422,6 @@ impl Client {
             window.mv(0, 1);
             window.printw("Barren Land\n");
             let delta = SystemTime::now().duration_since(compare_time).unwrap();
-            let time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis();
             compare_time = SystemTime::now();
             self.standing_tile = Tile::default();
             match self.view.as_str() {
@@ -790,7 +769,7 @@ impl Client {
                     */
                 }
                 Some(Input::KeyDC) => self.running = false,
-                Some(input) => {}
+                Some(_input) => {}
                 None => (),
             }
             let mut do_not_move = false;
