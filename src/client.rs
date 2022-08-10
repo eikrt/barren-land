@@ -1,34 +1,18 @@
 use crate::classes::CharacterStats;
 use crate::client_utils::*;
+use crate::draw::*;
 use crate::entities::*;
 use crate::queue::PostData;
 use crate::server::*;
 use crate::tiles::*;
 use crate::world::*;
-use pancurses::colorpair::ColorPair;
 use pancurses::*;
 use rand::Rng;
 use std::collections::HashMap;
 use std::env;
 use std::time::SystemTime;
 use std::{thread, time};
-const REFRESH_TIME: u64 = 10;
-const INPUT_DELAY: u64 = 500;
-const SCREEN_WIDTH: u8 = 64;
-const SCREEN_HEIGHT: u8 = 32;
-const EDGE_X: u8 = 16;
-const EDGE_Y: u8 = 8;
-const HUD_X: u8 = 0;
-const HUD_Y: u8 = 32;
-const HUD_WIDTH: u8 = 64;
-const HUD_HEIGHT: u8 = 12;
-const MARGIN_X: i32 = 0;
-const MARGIN_Y: i32 = 1;
-#[derive(Clone)]
-pub struct UiTile {
-    symbol: String,
-    color: u8,
-}
+pub const INPUT_DELAY: u64 = 500;
 #[derive(Clone)]
 pub struct ClientPlayer {
     x: i32,
@@ -66,10 +50,6 @@ pub struct Client {
     pub target: Entity,
     pub has_target: bool,
     pub camera: Camera,
-    pub ui_tiles: HashMap<String, UiTile>,
-    pub ui_entities: HashMap<String, UiTile>,
-    pub ui_hud: HashMap<String, UiTile>,
-    pub ui_world_map_tiles: HashMap<String, UiTile>,
     pub current_chunk_tiles: Vec<Vec<Tiles>>,
     pub current_world_map: Vec<Vec<WorldMapTile>>,
     pub first_loop: bool,
@@ -80,6 +60,8 @@ pub struct Client {
     pub current_world_properties: WorldProperties,
     pub standing_tile: Tile,
     pub standing_entity: Entity,
+    pub graphics_mode: String,
+    pub curses: Curses,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -103,7 +85,8 @@ impl Default for Client {
             current_world_properties: WorldProperties::default(),
             standing_tile: Tile::default(),
             standing_entity: Entity::default(),
-
+            graphics_mode: "curses".to_string(),
+            curses: Curses::default(),
             client_player: ClientPlayer {
                 x: 2,
                 y: 2,
@@ -125,203 +108,6 @@ impl Default for Client {
                 units: Entity::generate_default_units(),
                 resources: HashMap::new(),
             },
-            ui_world_map_tiles: HashMap::from([
-                (
-                    "barren_land".to_string(),
-                    UiTile {
-                        symbol: ".".to_string(),
-                        color: 1,
-                    },
-                ),
-                (
-                    "rock_desert".to_string(),
-                    UiTile {
-                        symbol: "*".to_string(),
-                        color: 9,
-                    },
-                ),
-                (
-                    "salt_desert".to_string(),
-                    UiTile {
-                        symbol: "_".to_string(),
-                        color: 7,
-                    },
-                ),
-                (
-                    "ice_desert".to_string(),
-                    UiTile {
-                        symbol: "~".to_string(),
-                        color: 7,
-                    },
-                ),
-                (
-                    "ash_desert".to_string(),
-                    UiTile {
-                        symbol: "`".to_string(),
-                        color: 7,
-                    },
-                ),
-                (
-                    "dunes".to_string(),
-                    UiTile {
-                        symbol: "~".to_string(),
-                        color: 1,
-                    },
-                ),
-                (
-                    "oasis".to_string(),
-                    UiTile {
-                        symbol: ".".to_string(),
-                        color: 4,
-                    },
-                ),
-            ]),
-            ui_hud: HashMap::from([
-                (
-                    "border".to_string(),
-                    UiTile {
-                        symbol: " ".to_string(),
-                        color: 6,
-                    },
-                ),
-                (
-                    "hud_body".to_string(),
-                    UiTile {
-                        symbol: " ".to_string(),
-                        color: 5,
-                    },
-                ),
-                (
-                    "hud_text".to_string(),
-                    UiTile {
-                        symbol: " ".to_string(),
-                        color: 3,
-                    },
-                ),
-            ]),
-            ui_tiles: HashMap::from([
-                (
-                    "sand".to_string(),
-                    UiTile {
-                        symbol: ".".to_string(),
-                        color: 1,
-                    },
-                ),
-                (
-                    "ice".to_string(),
-                    UiTile {
-                        symbol: ".".to_string(),
-                        color: 7,
-                    },
-                ),
-                (
-                    "dune_sand".to_string(),
-                    UiTile {
-                        symbol: "~".to_string(),
-                        color: 1,
-                    },
-                ),
-                (
-                    "ash".to_string(),
-                    UiTile {
-                        symbol: "`".to_string(),
-                        color: 9,
-                    },
-                ),
-                (
-                    "salt".to_string(),
-                    UiTile {
-                        symbol: "_".to_string(),
-                        color: 7,
-                    },
-                ),
-                (
-                    "gravel".to_string(),
-                    UiTile {
-                        symbol: "*".to_string(),
-                        color: 9,
-                    },
-                ),
-                (
-                    "rock".to_string(),
-                    UiTile {
-                        symbol: "^".to_string(),
-                        color: 1,
-                    },
-                ),
-                (
-                    "water".to_string(),
-                    UiTile {
-                        symbol: "~".to_string(),
-                        color: 2,
-                    },
-                ),
-                (
-                    "grass".to_string(),
-                    UiTile {
-                        symbol: ".".to_string(),
-                        color: 4,
-                    },
-                ),
-                (
-                    "lava".to_string(),
-                    UiTile {
-                        symbol: "~".to_string(),
-                        color: 10,
-                    },
-                ),
-            ]),
-            ui_entities: HashMap::from([
-                (
-                    "ogre".to_string(),
-                    UiTile {
-                        symbol: "o".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "kobold".to_string(),
-                    UiTile {
-                        symbol: "p".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "goblin".to_string(),
-                    UiTile {
-                        symbol: "G".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "gnoll".to_string(),
-                    UiTile {
-                        symbol: "g".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "rat".to_string(),
-                    UiTile {
-                        symbol: "r".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "scarab".to_string(),
-                    UiTile {
-                        symbol: "S".to_string(),
-                        color: 9,
-                    },
-                ),
-                (
-                    "no entity".to_string(),
-                    UiTile {
-                        symbol: " ".to_string(),
-                        color: 3,
-                    },
-                ),
-            ]),
         }
     }
 }
@@ -379,24 +165,6 @@ impl Client {
             .await;
         } else {
         }
-        let window = initscr();
-        window.refresh();
-        window.keypad(true);
-        window.timeout(REFRESH_TIME as i32);
-        curs_set(0);
-        noecho();
-        start_color();
-        use_default_colors();
-        init_pair(1, COLOR_BLACK, COLOR_YELLOW);
-        init_pair(2, COLOR_WHITE, COLOR_BLUE);
-        init_pair(3, COLOR_WHITE, COLOR_BLACK);
-        init_pair(4, COLOR_BLACK, COLOR_GREEN);
-        init_pair(5, COLOR_BLACK, COLOR_BLACK);
-        init_pair(6, COLOR_WHITE, COLOR_WHITE);
-        init_pair(7, COLOR_BLACK, COLOR_WHITE);
-        init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
-        init_pair(9, COLOR_WHITE, COLOR_BLACK);
-        init_pair(10, COLOR_BLACK, COLOR_RED);
         let server_clientid: ClientId =
             load_search_entity_clientid(client.clone(), username.clone(), id).await;
         self.client_player.chunk_x = server_clientid.chunk_x;
@@ -407,6 +175,7 @@ impl Client {
         self.camera.y = self.client_player.chunk_y
             * self.current_world_properties.chunk_size as i32
             - self.current_world_properties.chunk_size as i32 / 4;
+        self.curses.init();
         while self.running {
             let mut refresh_tiles = self.first_loop;
             let refresh_entities = true;
@@ -456,7 +225,6 @@ impl Client {
             }
             targetable_entities_sorted.sort_by(|e1, e2| e1.x.cmp(&e2.x));
             targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
-            let attributes = ColorPair(3);
 
             let delta = SystemTime::now().duration_since(compare_time).unwrap();
             compare_time = SystemTime::now();
@@ -476,24 +244,12 @@ impl Client {
                                         * self.current_world_properties.chunk_size as i32
                                         + tile.relative_x
                                         - self.camera.x;
-                                    if rel_x < 0
-                                        || rel_y < 0
-                                        || rel_x > SCREEN_WIDTH as i32 - 1
-                                        || rel_y > SCREEN_HEIGHT as i32 - MARGIN_Y
-                                    {
-                                        continue;
-                                    }
                                     if self.client_player.x == tile.x
                                         && self.client_player.y == tile.y
                                     {
                                         self.standing_tile = tile.clone();
                                     }
-
-                                    window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
-                                    let attributes =
-                                        ColorPair(self.ui_tiles[&tile.tile_type].color);
-                                    window.attron(attributes);
-                                    window.addstr(self.ui_tiles[&tile.tile_type].symbol.clone());
+                                    self.curses.draw_tile(tile.clone(), rel_x, rel_y);
                                 }
                             }
                         }
@@ -538,12 +294,7 @@ impl Client {
                                 if e_id == &(self.target.id) {
                                     continue;
                                 }
-                                window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
-
-                                let attributes =
-                                    ColorPair(self.ui_entities[&entity.entity_type].color);
-                                window.attron(attributes);
-                                window.addstr(self.ui_entities[&entity.entity_type].symbol.clone());
+                                self.curses.draw_entity(entity.clone(), rel_x, rel_y);
                             }
                         }
                     }
@@ -557,145 +308,113 @@ impl Client {
                         + self.target.relative_x
                         - self.camera.x
                         + MARGIN_X;
-                    let mut attributes = Attributes::new();
                     if self.target.entity_type != "no entity".to_string() {
-                        attributes.set_blink(true);
-                        window.attron(attributes);
-                        window.mv(rel_y, rel_x);
-                        window.addch('X');
-                        attributes.set_blink(false);
-                        window.attrset(attributes);
+                        self.curses.draw_cursor(rel_y, rel_x);
                     }
                     // draw hud
-                    for i in HUD_Y..(HUD_Y + HUD_HEIGHT) {
-                        for j in HUD_X..(HUD_X + HUD_WIDTH) {
-                            let mut hud_element = "border";
-                            if !(i == HUD_Y
-                                || i == HUD_Y + HUD_HEIGHT - 1
-                                || j == HUD_X
-                                || j == HUD_X + HUD_WIDTH - 1)
-                            {
-                                hud_element = "hud_body";
-                            }
-
-                            let attributes = ColorPair(self.ui_hud[hud_element].color);
-                            window.attron(attributes);
-                            window.mv(i as i32 + MARGIN_Y, j as i32 + MARGIN_X);
-                            window.addstr(self.ui_hud[hud_element].symbol.clone());
-                        }
-                    }
-                    let attributes = ColorPair(self.ui_hud["hud_text"].color);
-                    // abilities
-                    window.attron(attributes);
-                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("{}", username.clone()));
-                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("ABILITIES: "));
-                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("1. {}", self.client_player.stats.abilities["1"]));
-                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("2. {}", self.client_player.stats.abilities["2"]));
-                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("3. {}", self.client_player.stats.abilities["3"]));
-                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("4. {}", self.client_player.stats.abilities["4"]));
-                    window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
-                    window.addstr(format!("5. {}", self.client_player.stats.abilities["5"]));
-                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!(
-                        "UNITS: {}",
-                        self.client_player.units.values().len()
-                    ));
-                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("LEVEL: {}", self.client_player.level));
-                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("EXPERIENCE: {}", self.client_player.experience));
+                    self.curses.draw_hud();
+                    self.curses.draw_str_hud(2, 2, username.clone());
+                    self.curses
+                        .draw_str_hud(2, 16, format!("ABILITIES: ").to_string());
+                    self.curses.draw_str_hud(
+                        3,
+                        16,
+                        format!("1. {}", self.client_player.stats.abilities["1"]).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        4,
+                        16,
+                        format!("2. {}", self.client_player.stats.abilities["2"]).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        5,
+                        16,
+                        format!("3. {}", self.client_player.stats.abilities["3"]).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        6,
+                        16,
+                        format!("4. {}", self.client_player.stats.abilities["4"]).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        7,
+                        16,
+                        format!("5. {}", self.client_player.stats.abilities["5"]).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        9,
+                        2,
+                        format!("UNITS: {}", self.client_player.units.values().len()).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        4,
+                        2,
+                        format!("LEVEL: {}", self.client_player.level).to_string(),
+                    );
+                    self.curses.draw_str_hud(
+                        5,
+                        2,
+                        format!("EXPERIENCE: {}", self.client_player.experience).to_string(),
+                    );
                     // draw target
-                    window.mv(HUD_Y as i32 + 2 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!(
-                        "TARGET: {}",
-                        self.ui_entities[&self.target.entity_type].symbol
-                    ));
-                    window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 1);
-                    window.addstr(format!("TILE: {}", self.standing_tile.tile_type));
-                    window.mv(HUD_Y as i32 + 10 + MARGIN_Y, HUD_X as i32 + MARGIN_X + 18);
-                    window.addstr(format!("ENTITY: {}", self.standing_entity.entity_type));
-                    window.mv(HUD_Y as i32 + 3 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET TYPE: {}", self.target.entity_type));
-                    window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET NAME : {}", self.target.name));
-                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!(
-                        "TARGET UNITS: {}",
-                        self.target.units.values().len()
-                    ));
-                    window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET LEVEL: {}", self.target.level));
+
+                    self.curses
+                        .draw_str_hud(10, 2, format!("TILE: {}", self.standing_tile.tile_type));
+                    self.curses.draw_str_hud(
+                        10,
+                        18,
+                        format!("ENTITY: {}", self.standing_entity.entity_type),
+                    );
+                    self.curses.draw_str_hud(
+                        3,
+                        32,
+                        format!("TARGET TYPE: {}", self.target.entity_type),
+                    );
+                    self.curses
+                        .draw_str_hud(4, 32, format!("TARGET NAME : {}", self.target.name));
+                    self.curses.draw_str_hud(
+                        5,
+                        32,
+                        format!("TARGET UNITS: {}", self.target.units.values().len()),
+                    );
+                    self.curses
+                        .draw_str_hud(7, 32, format!("TARGET LEVEL: {}", self.target.level));
                     if self.attacking {
-                        window.mv(HUD_Y as i32 + 1 + MARGIN_Y, HUD_X as i32 + 1 + MARGIN_X);
-                        window.addstr(format!("/"));
+                        self.curses.draw_str_hud(1, 1, format!("/"));
                     }
-                    /*window.mv(self.client_player.self.render_y, self.client_player.self.render_x);
-                    let attributes = ColorPair(self.ui_entities["ogre"].color);
-                    window.attron(attributes);
-                    window.addstr(self.ui_entities["ogre"].symbol.clone()); */
                 }
                 "map" => {
                     for row in self.current_world_map.iter() {
                         for w_t in row.iter() {
-                            let attributes =
-                                ColorPair(self.ui_world_map_tiles[&w_t.chunk_type].color);
-                            window.mv(w_t.y + MARGIN_Y, w_t.x + MARGIN_X);
-                            window.attron(attributes);
-                            window.addstr(
-                                self.ui_world_map_tiles[&w_t.chunk_type.clone()]
-                                    .symbol
-                                    .clone(),
-                            );
+                            self.curses.draw_world_tile(w_t.clone());
                         }
                     }
                 }
                 "unit" => {
-                    window.mv(MARGIN_Y, MARGIN_X);
-                    window.addstr(format!("UNIT LIST"));
-                    window.mv(MARGIN_Y + 2, MARGIN_X);
+                    self.curses.draw_str(0,0,format!("UNIT LIST"));
                     let column_margin = 14;
                     let mut text_y = 1;
                     for (_id, unit) in self.client_player.units.iter() {
-                        window.mv(2 + MARGIN_Y, MARGIN_X);
-                        window.addstr(format!("NAME"));
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X);
-                        window.addstr(format!("{}", unit.name));
-                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin);
-                        window.addstr(format!("OCCUPATION"));
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 1);
-                        window.addstr(format!("{}", unit.profession));
-                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin * 2);
-                        window.addstr(format!("HP"));
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 2);
-                        window.addstr(format!("{}", unit.hp));
-                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin * 3);
-                        window.addstr(format!("ENERGY"));
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 3);
-                        window.addstr(format!("{}", unit.energy));
+                        self.curses.draw_str(2,0,(format!("NAME")));
+                        self.curses.draw_str(2 + text_y,0,format!("{}", unit.name));
+                        self.curses.draw_str(2,column_margin,format!("OCCUPATION"));
+                        self.curses.draw_str(2 + text_y, column_margin, format!("{}", unit.profession));
+                        self.curses.draw_str(2,column_margin*2,format!("HP"));
+                        self.curses.draw_str(2 + text_y, column_margin * 2, format!("{}", unit.hp));
+                        self.curses.draw_str(2, column_margin*3, format!("ENERGY"));
+                        self.curses.draw_str(2 + text_y, column_margin*3, format!("{}", unit.energy));
                         text_y += 1;
                     }
                 }
                 "resources" => {
-                    window.mv(MARGIN_Y, MARGIN_X);
-                    window.addstr(format!("STATUS"));
-                    window.mv(MARGIN_Y + 2, MARGIN_X);
+                    self.curses.draw_str(0,0,format!("STATUS"));
                     let column_margin = 14;
                     let mut text_y = 1;
-                    window.mv(2 + MARGIN_Y, MARGIN_X);
-                    window.addstr(format!("RESOURCE"));
-                    window.mv(2 + MARGIN_Y, MARGIN_X + column_margin);
-                    window.addstr(format!("AMOUNT"));
+                    self.curses.draw_str(2,0,format!("RESOURCE"));
+                    self.curses.draw_str(2,column_margin,format!("AMOUNT"));
                     for (key, resource) in self.client_player.resources.iter() {
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X);
-                        window.addstr(format!("{}", key));
-                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin);
-                        window.addstr(format!("{}", resource));
+                        self.curses.draw_str(2 + text_y,0,format!("{}", key));
+                        self.curses.draw_str(2 + text_y, column_margin, format!("{}", resource));
                         text_y += 1;
                     }
                 }
@@ -705,7 +424,7 @@ impl Client {
                 // refresh target
                 self.target = targetable_entities[&self.target.id].clone();
             }
-            match window.getch() {
+            match self.curses.window.getch() {
                 Some(Input::Character(c)) => {
                     //    window.addch(c);
                     match c {
@@ -1071,12 +790,11 @@ impl Client {
 
             // window.addstr(format!("{}", self.input_change));
             // draw hud
-            window.refresh();
-            window.erase();
+            self.curses.end_loop();
             thread::sleep(time::Duration::from_millis(REFRESH_TIME));
         }
 
-        endwin();
+        self.curses.end_win();
     }
 }
 
