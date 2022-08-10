@@ -61,7 +61,7 @@ pub struct Client {
     pub standing_tile: Tile,
     pub standing_entity: Entity,
     pub graphics_mode: String,
-    pub curses: Curses,
+    pub ui: UiType,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -85,8 +85,8 @@ impl Default for Client {
             current_world_properties: WorldProperties::default(),
             standing_tile: Tile::default(),
             standing_entity: Entity::default(),
-            graphics_mode: "curses".to_string(),
-            curses: Curses::default(),
+            graphics_mode: "ui".to_string(),
+            ui: UiType::default(),
             client_player: ClientPlayer {
                 x: 2,
                 y: 2,
@@ -175,7 +175,8 @@ impl Client {
         self.camera.y = self.client_player.chunk_y
             * self.current_world_properties.chunk_size as i32
             - self.current_world_properties.chunk_size as i32 / 4;
-        self.curses.init();
+        let mut graphics_frontend = self.ui.get_type("curses".to_string());
+        graphics_frontend.init();
         while self.running {
             let mut refresh_tiles = self.first_loop;
             let refresh_entities = true;
@@ -249,7 +250,7 @@ impl Client {
                                     {
                                         self.standing_tile = tile.clone();
                                     }
-                                    self.curses.draw_tile(tile.clone(), rel_x, rel_y);
+                                    graphics_frontend.draw_tile(tile.clone(), rel_x, rel_y);
                                 }
                             }
                         }
@@ -294,7 +295,7 @@ impl Client {
                                 if e_id == &(self.target.id) {
                                     continue;
                                 }
-                                self.curses.draw_entity(entity.clone(), rel_x, rel_y);
+                                graphics_frontend.draw_entity(entity.clone(), rel_x, rel_y);
                             }
                         }
                     }
@@ -309,112 +310,112 @@ impl Client {
                         - self.camera.x
                         + MARGIN_X;
                     if self.target.entity_type != "no entity".to_string() {
-                        self.curses.draw_cursor(rel_y, rel_x);
+                        graphics_frontend.draw_cursor(rel_y, rel_x);
                     }
                     // draw hud
-                    self.curses.draw_hud();
-                    self.curses.draw_str_hud(2, 2, username.clone());
-                    self.curses
+                    graphics_frontend.draw_hud();
+                    graphics_frontend.draw_str_hud(2, 2, username.clone());
+                    graphics_frontend
                         .draw_str_hud(2, 16, format!("ABILITIES: ").to_string());
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         3,
                         16,
                         format!("1. {}", self.client_player.stats.abilities["1"]).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         4,
                         16,
                         format!("2. {}", self.client_player.stats.abilities["2"]).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         5,
                         16,
                         format!("3. {}", self.client_player.stats.abilities["3"]).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         6,
                         16,
                         format!("4. {}", self.client_player.stats.abilities["4"]).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         7,
                         16,
                         format!("5. {}", self.client_player.stats.abilities["5"]).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         9,
                         2,
                         format!("UNITS: {}", self.client_player.units.values().len()).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         4,
                         2,
                         format!("LEVEL: {}", self.client_player.level).to_string(),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         5,
                         2,
                         format!("EXPERIENCE: {}", self.client_player.experience).to_string(),
                     );
                     // draw target
 
-                    self.curses
+                    graphics_frontend
                         .draw_str_hud(10, 2, format!("TILE: {}", self.standing_tile.tile_type));
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         10,
                         18,
                         format!("ENTITY: {}", self.standing_entity.entity_type),
                     );
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         3,
                         32,
                         format!("TARGET TYPE: {}", self.target.entity_type),
                     );
-                    self.curses
+                    graphics_frontend
                         .draw_str_hud(4, 32, format!("TARGET NAME : {}", self.target.name));
-                    self.curses.draw_str_hud(
+                    graphics_frontend.draw_str_hud(
                         5,
                         32,
                         format!("TARGET UNITS: {}", self.target.units.values().len()),
                     );
-                    self.curses
+                    graphics_frontend
                         .draw_str_hud(7, 32, format!("TARGET LEVEL: {}", self.target.level));
                     if self.attacking {
-                        self.curses.draw_str_hud(1, 1, format!("/"));
+                        graphics_frontend.draw_str_hud(1, 1, format!("/"));
                     }
                 }
                 "map" => {
                     for row in self.current_world_map.iter() {
                         for w_t in row.iter() {
-                            self.curses.draw_world_tile(w_t.clone());
+                            graphics_frontend.draw_world_tile(w_t.clone());
                         }
                     }
                 }
                 "unit" => {
-                    self.curses.draw_str(0,0,format!("UNIT LIST"));
+                    graphics_frontend.draw_str(0,0,format!("UNIT LIST"));
                     let column_margin = 14;
                     let mut text_y = 1;
                     for (_id, unit) in self.client_player.units.iter() {
-                        self.curses.draw_str(2,0,(format!("NAME")));
-                        self.curses.draw_str(2 + text_y,0,format!("{}", unit.name));
-                        self.curses.draw_str(2,column_margin,format!("OCCUPATION"));
-                        self.curses.draw_str(2 + text_y, column_margin, format!("{}", unit.profession));
-                        self.curses.draw_str(2,column_margin*2,format!("HP"));
-                        self.curses.draw_str(2 + text_y, column_margin * 2, format!("{}", unit.hp));
-                        self.curses.draw_str(2, column_margin*3, format!("ENERGY"));
-                        self.curses.draw_str(2 + text_y, column_margin*3, format!("{}", unit.energy));
+                        graphics_frontend.draw_str(2,0,(format!("NAME")));
+                        graphics_frontend.draw_str(2 + text_y,0,format!("{}", unit.name));
+                        graphics_frontend.draw_str(2,column_margin,format!("OCCUPATION"));
+                        graphics_frontend.draw_str(2 + text_y, column_margin, format!("{}", unit.profession));
+                        graphics_frontend.draw_str(2,column_margin*2,format!("HP"));
+                        graphics_frontend.draw_str(2 + text_y, column_margin * 2, format!("{}", unit.hp));
+                        graphics_frontend.draw_str(2, column_margin*3, format!("ENERGY"));
+                        graphics_frontend.draw_str(2 + text_y, column_margin*3, format!("{}", unit.energy));
                         text_y += 1;
                     }
                 }
                 "resources" => {
-                    self.curses.draw_str(0,0,format!("STATUS"));
+                    graphics_frontend.draw_str(0,0,format!("STATUS"));
                     let column_margin = 14;
                     let mut text_y = 1;
-                    self.curses.draw_str(2,0,format!("RESOURCE"));
-                    self.curses.draw_str(2,column_margin,format!("AMOUNT"));
+                    graphics_frontend.draw_str(2,0,format!("RESOURCE"));
+                    graphics_frontend.draw_str(2,column_margin,format!("AMOUNT"));
                     for (key, resource) in self.client_player.resources.iter() {
-                        self.curses.draw_str(2 + text_y,0,format!("{}", key));
-                        self.curses.draw_str(2 + text_y, column_margin, format!("{}", resource));
+                        graphics_frontend.draw_str(2 + text_y,0,format!("{}", key));
+                        graphics_frontend.draw_str(2 + text_y, column_margin, format!("{}", resource));
                         text_y += 1;
                     }
                 }
@@ -424,7 +425,7 @@ impl Client {
                 // refresh target
                 self.target = targetable_entities[&self.target.id].clone();
             }
-            match self.curses.window.getch() {
+            match graphics_frontend.get_window().getch() {
                 Some(Input::Character(c)) => {
                     //    window.addch(c);
                     match c {
@@ -790,11 +791,11 @@ impl Client {
 
             // window.addstr(format!("{}", self.input_change));
             // draw hud
-            self.curses.end_loop();
+            graphics_frontend.end_loop();
             thread::sleep(time::Duration::from_millis(REFRESH_TIME));
         }
 
-        self.curses.end_win();
+        graphics_frontend.end_win();
     }
 }
 

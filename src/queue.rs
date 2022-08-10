@@ -136,7 +136,7 @@ pub fn execute_action(action: PostData) {
                 level: 1,
                 chunk_x: action_chunk_x as i32,
                 chunk_y: action_chunk_y as i32,
-                entity_type: "peaceful".to_string(),
+                entity_type: "ogre".to_string(),
                 name: action.params["name"].clone(),
                 id: id,
                 stats: CharacterStats::ogre(),
