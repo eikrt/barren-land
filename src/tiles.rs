@@ -9,6 +9,8 @@ pub struct Tile {
     pub chunk_x: i32,
     pub chunk_y: i32,
     pub tile_type: String,
+    pub has_trees: bool,
+    pub gathered: bool,
 }
 impl Default for Tile {
     fn default() -> Tile {
@@ -20,7 +22,9 @@ impl Default for Tile {
             relative_y: 1,
             chunk_x: 1,
             chunk_y: 1,
-            tile_type: "sand".to_string()
+            tile_type: "sand".to_string(),
+            has_trees: false,
+            gathered: true,
         }
     }
 }

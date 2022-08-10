@@ -62,6 +62,12 @@ pub fn open_tiles(x: i32, y: i32) -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded;
 }
+pub fn open_tiles_as_struct(x: i32, y: i32) -> Tiles {
+    let path = format!("world/chunks/chunk_{}_{}/tiles.dat", x, y);
+    let body = fs::read(path).unwrap();
+    let decoded: Tiles = bincode::deserialize(&body).unwrap_or(Tiles::default());
+    return decoded;
+}
 pub fn open_entities(x: i32, y: i32) -> String {
     let path = format!("world/chunks/chunk_{}_{}/entities.dat", x, y);
     let body = fs::read(path).unwrap();

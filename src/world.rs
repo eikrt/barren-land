@@ -1,4 +1,6 @@
+use crate::entities::*;
 use crate::server::*;
+use crate::tiles::*;
 use bincode;
 use rand::Rng;
 use rayon::prelude::*;
@@ -8,8 +10,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
-use crate::entities::*;
-use crate::tiles::*;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Biome {
     biome: String,
@@ -63,7 +63,7 @@ pub struct World {
 }
 fn get_generated_chunk(
     seed: i32,
-    _sealevel: f32,
+    sealevel: f32,
     chunk_size: u32,
     world_width: u32,
     world_height: u32,
@@ -133,6 +133,16 @@ fn get_generated_chunk(
     .with_seed(seed * 8)
     .with_lacunarity(0.2)
     .generate_scaled(0.0, 512.0);
+    let biome_noise_6 = NoiseBuilder::fbm_2d(
+        (chunk_size * world_width).try_into().unwrap(),
+        (chunk_size * world_height).try_into().unwrap(),
+    )
+    .with_freq(0.05)
+    .with_octaves(7.0 as u8)
+    .with_gain(1.0)
+    .with_seed(seed * 9)
+    .with_lacunarity(0.2)
+    .generate_scaled(0.0, 512.0);
     let biome_threshold = 256.0;
     let mut biome_counts: HashMap<String, i32> = HashMap::new();
 
@@ -142,6 +152,7 @@ fn get_generated_chunk(
     biome_counts.insert("ice_desert".to_string(), 0);
     biome_counts.insert("rock_desert".to_string(), 0);
     biome_counts.insert("barren_land".to_string(), 0);
+    biome_counts.insert("oasis".to_string(), 0);
     for i in 0..chunk_size {
         tiles_vec.push(Vec::new());
         for j in 0..chunk_size {
@@ -159,9 +170,13 @@ fn get_generated_chunk(
                 chunk_y: y,
                 h: height_noise[perlin_coord],
                 tile_type: "rock".to_string(),
+                has_trees: false,
+                gathered: true,
             };
             if biome_noise_1[perlin_coord] < biome_threshold {
                 biome = "dunes".to_string();
+            } else if biome_noise_6[perlin_coord] < biome_threshold {
+                biome = "oasis".to_string();
             } else if biome_noise_2[perlin_coord] < biome_threshold {
                 biome = "ash_desert".to_string();
             } else if biome_noise_3[perlin_coord] < biome_threshold {
@@ -178,18 +193,28 @@ fn get_generated_chunk(
                 match biome.as_str() {
                     "dunes" => {
                         tile.tile_type = "dune_sand".to_string();
-                        let biome_entity = Entity::scarab(tile_x, tile_y, j as i32, i as i32, x, y, id, "scarab".to_string(), "scarab".to_string());
+                        /*let biome_entity = Entity::scarab(tile_x, tile_y, j as i32, i as i32, x, y, id, "scarab".to_string(), "scarab".to_string());
                         if rng.gen_range(0..32) == 1 {
                             entities_map.insert(id, biome_entity);
-                        }
-                    },
+                        }*/
+                    }
                     "ash_desert" => tile.tile_type = "ash".to_string(),
                     "salt_desert" => tile.tile_type = "salt".to_string(),
                     "ice_desert" => tile.tile_type = "ice".to_string(),
                     "rock_desert" => tile.tile_type = "gravel".to_string(),
                     "barren_land" => tile.tile_type = "sand".to_string(),
+                    "oasis" => {
+                        tile.tile_type = "grass".to_string();
+                        tile.has_trees = true;
+                        tile.gathered = false;
+                    }
+
                     _ => tile.tile_type = "sand".to_string(),
                 };
+            }
+            if tile.h < sealevel {
+                tile.tile_type = "water".to_string();
+                tile.gathered = false;
             }
             /* let mut entity = Entity {
                 x: tile_x,
@@ -257,7 +282,13 @@ pub fn write_world_properties(
     let encoded: Vec<u8> = bincode::serialize(&w_p).unwrap();
     world_properties_file.write_all(&encoded);
 }
-fn generate_chunks(seed: i32, chunk_size: u32, world_width: u32, world_height: u32, _sealevel: f32) {
+fn generate_chunks(
+    seed: i32,
+    chunk_size: u32,
+    world_width: u32,
+    world_height: u32,
+    _sealevel: f32,
+) {
     (0..world_height).into_par_iter().for_each(|i| {
         (0..world_width).into_par_iter().for_each(|j| {
             let (generated_tiles, generated_entities) = get_generated_chunk(

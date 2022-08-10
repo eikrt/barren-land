@@ -1,20 +1,27 @@
-use crate::server::*;
+use crate::classes::*;
 use crate::entities::*;
+use crate::server::*;
+use crate::tiles::*;
+use crate::world::*;
 use actix_web::*;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io::prelude::*;
-use std::sync::{Mutex};
-use crate::classes::*;
+use std::sync::Mutex;
 pub struct MoveSet {
-     directions: Vec<String>,
+    directions: Vec<String>,
 }
 impl Default for MoveSet {
     fn default() -> MoveSet {
         MoveSet {
-            directions: Vec::from(["up".to_string(),"down".to_string(),"left".to_string(),"right".to_string()]),
+            directions: Vec::from([
+                "up".to_string(),
+                "down".to_string(),
+                "left".to_string(),
+                "right".to_string(),
+            ]),
         }
     }
 }
@@ -80,14 +87,8 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
                                     ("command".to_string(), "move".to_string()),
                                     ("move_dir".to_string(), moveset.get_direction()),
                                     ("id".to_string(), entity.id.to_string()),
-                                    (
-                                        "chunk_x".to_string(),
-                                        format!("{}", cx).to_string(),
-                                    ),
-                                    (
-                                        "chunk_y".to_string(),
-                                        format!("{}", cy).to_string(),
-                                    ),
+                                    ("chunk_x".to_string(), format!("{}", cx).to_string()),
+                                    ("chunk_y".to_string(), format!("{}", cy).to_string()),
                                 ]),
                             };
                             state.queue.push(action);
@@ -116,6 +117,7 @@ pub fn execute_action(action: PostData) {
     let action_chunk_y = action.params["chunk_y"].parse::<i32>().unwrap();
     let id = action.params["id"].parse::<u64>().unwrap();
     let mut action_entities = open_entities_as_struct(action_chunk_x as i32, action_chunk_y as i32);
+    let mut action_tiles = open_tiles_as_struct(action_chunk_x as i32, action_chunk_y as i32);
     let mut remove_entity = false;
     let mut add_entity = false;
     let mut chunk_x_to_add = action_chunk_x;
@@ -124,26 +126,29 @@ pub fn execute_action(action: PostData) {
         "spawn" => {
             let action_x: i32 = action.params["x"].parse::<i32>().unwrap();
             let action_y: i32 = action.params["y"].parse::<i32>().unwrap();
+            let units = Entity::generate_default_units();
             let mut entity = Entity {
                 x: w_p.chunk_size as i32 * action_chunk_x + action_x,
                 y: w_p.chunk_size as i32 * action_chunk_y as i32 + action_y,
                 relative_x: action_x,
                 relative_y: action_y,
-                hp: 100,
-                energy: 100,
                 experience: 0,
                 level: 1,
                 chunk_x: action_chunk_x as i32,
                 chunk_y: action_chunk_y as i32,
-                entity_type: "gatherer".to_string(),
+                entity_type: "peaceful".to_string(),
                 name: action.params["name"].clone(),
                 id: id,
-                stats: CharacterStats::gatherer(),
+                stats: CharacterStats::ogre(),
+                units: units,
+                resources: HashMap::from([("wood".to_string(), 0), ("food".to_string(), 10)]),
+                standing_tile: Tile::default(),
             };
-            *entity.stats.abilities.get_mut("2").unwrap() = "LEVEL 2".to_string();
-            *entity.stats.abilities.get_mut("3").unwrap() = "LEVEL 3".to_string();
-            *entity.stats.abilities.get_mut("4").unwrap() = "LEVEL 4".to_string();
-            *entity.stats.abilities.get_mut("5").unwrap() = "LEVEL 5".to_string();
+            *entity.stats.abilities.get_mut("1").unwrap() = "LEVEL 2".to_string();
+            *entity.stats.abilities.get_mut("2").unwrap() = "LEVEL 3".to_string();
+            *entity.stats.abilities.get_mut("3").unwrap() = "LEVEL 4".to_string();
+            *entity.stats.abilities.get_mut("4").unwrap() = "LEVEL 5".to_string();
+            *entity.stats.abilities.get_mut("5").unwrap() = "LEVEL 6".to_string();
             action_entities.entities.insert(id, entity);
         }
         "move" => {
@@ -185,6 +190,24 @@ pub fn execute_action(action: PostData) {
                 e.chunk_y = chunk_y_to_add;
                 update_entity_list(id, e.clone());
             }
+            if e.resources.get_mut("food").unwrap_or(&mut 0) > &mut 0 {
+                *e.resources.get_mut("food").unwrap_or(&mut 0) -= 1;
+            }
+            let mut standing_tile = Tile::default();
+            for row in action_tiles.tiles.iter() {
+                for tile in row.iter() {
+                    if tile.x == e.x && tile.y == e.y {
+                        standing_tile = tile.clone();
+                    }
+                }
+            }
+            if standing_tile.tile_type == "water".to_string() {
+                if e.resources.get_mut("wood").unwrap_or(&mut 0) > &mut 0 {
+                    *e.resources.get_mut("wood").unwrap_or(&mut 0) -= 1;
+                } else {
+                    e.damage("water".to_string());
+                }
+            }
         }
         "attack" => {
             if !action_entities.entities.contains_key(&id) {
@@ -204,25 +227,54 @@ pub fn execute_action(action: PostData) {
                 }
                 match action.params["type"].as_str() {
                     "auto" => {
-                        let dmg = rng.gen_range(1..10);
-                        target_entity.hp -= dmg;
+                        target_entity.damage("auto".to_string());
                     }
                     "special" => {
                         match action.params["ability"].as_str() {
-                            "double kick" => {
-                                let dmg = rng.gen_range(5..20);
-                                target_entity.hp -= dmg;
+                            "" => {
+                                //let dmg = rng.gen_range(5..20);
+                                //target_entity.hp -= dmg;
                             }
                             _ => {}
                         };
-                        let dmg = rng.gen_range(0..10);
-                        target_entity.hp -= dmg;
+                        //let dmg = rng.gen_range(0..10);
+                        //target_entity.hp -= dmg;
                     }
                     _ => {}
                 };
-                if action_entities.entities.get_mut(&target_id).unwrap().hp < 0 {
+                if target_entity.units.values().len() <= 0 {
                     action_entities.entities.remove(&target_id);
-                    println!("removed entity by id{}", target_id);
+                }
+            }
+        }
+        "gather_resource" => {
+            let e = action_entities.entities.get_mut(&id).unwrap();
+            for row in action_tiles.tiles.iter_mut() {
+                for tile in row.iter_mut() {
+                    if tile.x == e.x && tile.y == e.y {
+                        if tile.tile_type == "grass".to_string() && tile.has_trees {
+                            *e.resources.get_mut("wood").unwrap_or(&mut 0) += 1;
+                            if e.resources.get_mut("food").unwrap_or(&mut 0) > &mut 0 {
+                                *e.resources.get_mut("food").unwrap_or(&mut 0) -= 1;
+                            }
+                            tile.tile_type = "sand".to_string();
+                            tile.has_trees = false;
+                        }
+                    }
+                }
+            }
+        }
+        "gather_food" => {
+            let e = action_entities.entities.get_mut(&id).unwrap();
+            for row in action_tiles.tiles.iter_mut() {
+                for tile in row.iter_mut() {
+                    if tile.x == e.x && tile.y == e.y {
+                        if !tile.gathered {
+                            let f = rng.gen_range(1..4);
+                            *e.resources.get_mut("food").unwrap_or(&mut 0) += f;
+                        }
+                        tile.gathered = true;
+                    }
                 }
             }
         }
@@ -244,6 +296,7 @@ pub fn execute_action(action: PostData) {
         action_entities.entities.remove(&id);
     }
     write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
+    write_tiles_to_file(action_chunk_x, action_chunk_y, action_tiles);
 }
 pub fn update_entity_list(_id: u64, entity: Entity) {
     let mut u_e = open_client_ids_to_struct();
@@ -262,4 +315,11 @@ pub fn write_entities_to_file(x: i32, y: i32, write_entities: Entities) {
     let encoded: Vec<u8> = bincode::serialize(&write_entities).unwrap();
 
     entities_file.write_all(&encoded);
+}
+pub fn write_tiles_to_file(x: i32, y: i32, write_tiles: Tiles) {
+    let mut tiles_file =
+        fs::File::create(format!("world/chunks/chunk_{}_{}/tiles.dat", x, y)).unwrap();
+    let encoded: Vec<u8> = bincode::serialize(&write_tiles).unwrap();
+
+    tiles_file.write_all(&encoded);
 }

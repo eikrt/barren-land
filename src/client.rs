@@ -1,17 +1,17 @@
+use crate::classes::CharacterStats;
 use crate::client_utils::*;
-use crate::queue::PostData;
-use crate::world::*;
 use crate::entities::*;
+use crate::queue::PostData;
+use crate::server::*;
 use crate::tiles::*;
-use crate::classes::{CharacterStats};
+use crate::world::*;
 use pancurses::colorpair::ColorPair;
 use pancurses::*;
 use rand::Rng;
+use std::collections::HashMap;
 use std::env;
-use std::time::{SystemTime};
-use std::{collections::HashMap};
+use std::time::SystemTime;
 use std::{thread, time};
-use crate::server::*;
 const REFRESH_TIME: u64 = 10;
 const INPUT_DELAY: u64 = 500;
 const SCREEN_WIDTH: u8 = 64;
@@ -48,6 +48,8 @@ pub struct ClientPlayer {
     special_attack_change: u64,
     special_attack_time: u64,
     stats: CharacterStats,
+    units: HashMap<u64, Unit>,
+    resources: HashMap<String, i32>,
 }
 pub struct Camera {
     x: i32,
@@ -120,6 +122,8 @@ impl Default for Client {
                 special_attack_time: 1000,
                 special_attack_change: 1000,
                 stats: CharacterStats::default(),
+                units: Entity::generate_default_units(),
+                resources: HashMap::new(),
             },
             ui_world_map_tiles: HashMap::from([
                 (
@@ -162,6 +166,13 @@ impl Default for Client {
                     UiTile {
                         symbol: "~".to_string(),
                         color: 1,
+                    },
+                ),
+                (
+                    "oasis".to_string(),
+                    UiTile {
+                        symbol: ".".to_string(),
+                        color: 4,
                     },
                 ),
             ]),
@@ -252,12 +263,47 @@ impl Default for Client {
                         color: 4,
                     },
                 ),
+                (
+                    "lava".to_string(),
+                    UiTile {
+                        symbol: "~".to_string(),
+                        color: 10,
+                    },
+                ),
             ]),
             ui_entities: HashMap::from([
                 (
                     "ogre".to_string(),
                     UiTile {
-                        symbol: "O".to_string(),
+                        symbol: "o".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "kobold".to_string(),
+                    UiTile {
+                        symbol: "p".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "goblin".to_string(),
+                    UiTile {
+                        symbol: "G".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "gnoll".to_string(),
+                    UiTile {
+                        symbol: "g".to_string(),
+                        color: 3,
+                    },
+                ),
+                (
+                    "rat".to_string(),
+                    UiTile {
+                        symbol: "r".to_string(),
                         color: 3,
                     },
                 ),
@@ -272,13 +318,6 @@ impl Default for Client {
                     "no entity".to_string(),
                     UiTile {
                         symbol: " ".to_string(),
-                        color: 3,
-                    },
-                ),
-                (
-                    "gatherer".to_string(),
-                    UiTile {
-                        symbol: "g".to_string(),
                         color: 3,
                     },
                 ),
@@ -348,15 +387,16 @@ impl Client {
         noecho();
         start_color();
         use_default_colors();
-        init_pair(1, COLOR_WHITE, COLOR_YELLOW);
+        init_pair(1, COLOR_BLACK, COLOR_YELLOW);
         init_pair(2, COLOR_WHITE, COLOR_BLUE);
         init_pair(3, COLOR_WHITE, COLOR_BLACK);
-        init_pair(4, COLOR_WHITE, COLOR_GREEN);
+        init_pair(4, COLOR_BLACK, COLOR_GREEN);
         init_pair(5, COLOR_BLACK, COLOR_BLACK);
         init_pair(6, COLOR_WHITE, COLOR_WHITE);
         init_pair(7, COLOR_BLACK, COLOR_WHITE);
         init_pair(8, COLOR_WHITE, COLOR_MAGENTA);
         init_pair(9, COLOR_WHITE, COLOR_BLACK);
+        init_pair(10, COLOR_BLACK, COLOR_RED);
         let server_clientid: ClientId =
             load_search_entity_clientid(client.clone(), username.clone(), id).await;
         self.client_player.chunk_x = server_clientid.chunk_x;
@@ -418,9 +458,6 @@ impl Client {
             targetable_entities_sorted.sort_by(|e1, e2| e1.y.cmp(&e2.y));
             let attributes = ColorPair(3);
 
-            window.attron(attributes);
-            window.mv(0, 1);
-            window.printw("Barren Land\n");
             let delta = SystemTime::now().duration_since(compare_time).unwrap();
             compare_time = SystemTime::now();
             self.standing_tile = Tile::default();
@@ -488,11 +525,11 @@ impl Client {
                                     self.client_player.relative_y = entity.relative_y;
                                     self.client_player.x = entity.x;
                                     self.client_player.y = entity.y;
-                                    self.client_player.hp = entity.hp;
                                     self.client_player.level = entity.level;
                                     self.client_player.experience = entity.experience;
-                                    self.client_player.energy = entity.energy;
                                     self.client_player.stats = entity.stats.clone();
+                                    self.client_player.units = entity.units.clone();
+                                    self.client_player.resources = entity.resources.clone();
                                 } else if self.client_player.x == entity.x
                                     && self.client_player.y == entity.y
                                 {
@@ -565,9 +602,10 @@ impl Client {
                     window.mv(HUD_Y as i32 + 8 + MARGIN_Y, HUD_X as i32 + 16 + MARGIN_X);
                     window.addstr(format!("5. {}", self.client_player.stats.abilities["5"]));
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("HP: {}", self.client_player.hp));
-                    window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
-                    window.addstr(format!("ENERGY: {}", self.client_player.energy));
+                    window.addstr(format!(
+                        "UNITS: {}",
+                        self.client_player.units.values().len()
+                    ));
                     window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
                     window.addstr(format!("LEVEL: {}", self.client_player.level));
                     window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 2 + MARGIN_X);
@@ -587,9 +625,10 @@ impl Client {
                     window.mv(HUD_Y as i32 + 4 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!("TARGET NAME : {}", self.target.name));
                     window.mv(HUD_Y as i32 + 5 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET HEALTH: {}", self.target.hp));
-                    window.mv(HUD_Y as i32 + 6 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
-                    window.addstr(format!("TARGET ENERGY: {}", self.target.energy));
+                    window.addstr(format!(
+                        "TARGET UNITS: {}",
+                        self.target.units.values().len()
+                    ));
                     window.mv(HUD_Y as i32 + 7 + MARGIN_Y, HUD_X as i32 + 32 + MARGIN_X);
                     window.addstr(format!("TARGET LEVEL: {}", self.target.level));
                     if self.attacking {
@@ -614,6 +653,50 @@ impl Client {
                                     .clone(),
                             );
                         }
+                    }
+                }
+                "unit" => {
+                    window.mv(MARGIN_Y, MARGIN_X);
+                    window.addstr(format!("UNIT LIST"));
+                    window.mv(MARGIN_Y + 2, MARGIN_X);
+                    let column_margin = 14;
+                    let mut text_y = 1;
+                    for (_id, unit) in self.client_player.units.iter() {
+                        window.mv(2 + MARGIN_Y, MARGIN_X);
+                        window.addstr(format!("NAME"));
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X);
+                        window.addstr(format!("{}", unit.name));
+                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin);
+                        window.addstr(format!("OCCUPATION"));
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 1);
+                        window.addstr(format!("{}", unit.profession));
+                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin * 2);
+                        window.addstr(format!("HP"));
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 2);
+                        window.addstr(format!("{}", unit.hp));
+                        window.mv(2 + MARGIN_Y, MARGIN_X + column_margin * 3);
+                        window.addstr(format!("ENERGY"));
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin * 3);
+                        window.addstr(format!("{}", unit.energy));
+                        text_y += 1;
+                    }
+                }
+                "resources" => {
+                    window.mv(MARGIN_Y, MARGIN_X);
+                    window.addstr(format!("STATUS"));
+                    window.mv(MARGIN_Y + 2, MARGIN_X);
+                    let column_margin = 14;
+                    let mut text_y = 1;
+                    window.mv(2 + MARGIN_Y, MARGIN_X);
+                    window.addstr(format!("RESOURCE"));
+                    window.mv(2 + MARGIN_Y, MARGIN_X + column_margin);
+                    window.addstr(format!("AMOUNT"));
+                    for (key, resource) in self.client_player.resources.iter() {
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X);
+                        window.addstr(format!("{}", key));
+                        window.mv(2 + text_y + MARGIN_Y, MARGIN_X + column_margin);
+                        window.addstr(format!("{}", resource));
+                        text_y += 1;
                     }
                 }
                 _ => {}
@@ -649,6 +732,27 @@ impl Client {
                             "map" => {
                                 self.view = "game".to_string();
                             }
+
+                            _ => {}
+                        },
+                        'u' => match self.view.as_str() {
+                            "unit" => {
+                                self.view = "game".to_string();
+                            }
+                            "game" => {
+                                self.view = "unit".to_string();
+                            }
+
+                            _ => {}
+                        },
+                        'r' => match self.view.as_str() {
+                            "resources" => {
+                                self.view = "game".to_string();
+                            }
+                            "game" => {
+                                self.view = "resources".to_string();
+                            }
+
                             _ => {}
                         },
                         '\t' => {
@@ -676,6 +780,27 @@ impl Client {
                         }
                         'c' => {
                             self.attacking = !self.attacking;
+                        }
+                        'g' => {
+                            conduct_action(
+                                client.clone(),
+                                id,
+                                self.client_player.clone(),
+                                self.target.clone(),
+                                "gather_resource".to_string(),
+                            )
+                            .await;
+                            refresh_tiles = true;
+                        }
+                        'f' => {
+                            conduct_action(
+                                client.clone(),
+                                id,
+                                self.client_player.clone(),
+                                self.target.clone(),
+                                "gather_food".to_string(),
+                            )
+                            .await;
                         }
                         '1' => {
                             if self.client_player.special_attack_change
@@ -953,6 +1078,34 @@ impl Client {
 
         endwin();
     }
+}
+
+async fn conduct_action(
+    client: reqwest::Client,
+    id: u64,
+    client_player: ClientPlayer,
+    target: Entity,
+    action_type: String,
+) {
+    post_to_queue(
+        client.clone(),
+        PostData {
+            params: HashMap::from([
+                ("command".to_string(), action_type),
+                ("id".to_string(), id.to_string()),
+                ("target_id".to_string(), format!("{}", target.id)),
+                (
+                    "chunk_x".to_string(),
+                    format!("{}", client_player.chunk_x).to_string(),
+                ),
+                (
+                    "chunk_y".to_string(),
+                    format!("{}", client_player.chunk_y).to_string(),
+                ),
+            ]),
+        },
+    )
+    .await;
 }
 async fn attack(
     client: reqwest::Client,
