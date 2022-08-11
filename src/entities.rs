@@ -119,6 +119,7 @@ pub struct Entity {
     pub resources: HashMap<String, i32>,
     pub units: HashMap<u64, Unit>,
     pub standing_tile: Tile,
+    pub alive: bool,
 }
 impl Entity {
     pub fn move_dir(&mut self, dir: String) {
@@ -173,6 +174,7 @@ impl Default for Entity {
             units: HashMap::new(),
             resources: HashMap::new(),
             standing_tile: Tile::default(),
+            alive: true,
         }
     }
 }
@@ -217,6 +219,7 @@ impl Scarab for Entity {
             units: Entity::generate_default_units(),
             resources: HashMap::new(),
             standing_tile: Tile::default(),
+            alive: true,
         }
     }
 }

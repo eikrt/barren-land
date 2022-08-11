@@ -77,7 +77,7 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
         }
         for cy in ly..ry {
             for cx in lx..rx {
-                let chunk_entities = open_entities_as_struct(cx, cy);
+                let chunk_entities = open_entities_as_struct(cx, cy).unwrap();
                 for (_e_id, entity) in chunk_entities.entities.iter() {
                     let moveset = MoveSet::default();
                     match entity.entity_type.as_str() {
@@ -116,8 +116,16 @@ pub fn execute_action(action: PostData) {
     let action_chunk_x = action.params["chunk_x"].parse::<i32>().unwrap();
     let action_chunk_y = action.params["chunk_y"].parse::<i32>().unwrap();
     let id = action.params["id"].parse::<u64>().unwrap();
-    let mut action_entities = open_entities_as_struct(action_chunk_x as i32, action_chunk_y as i32);
-    let mut action_tiles = open_tiles_as_struct(action_chunk_x as i32, action_chunk_y as i32);
+    let mut action_entities =
+        match open_entities_as_struct(action_chunk_x as i32, action_chunk_y as i32) {
+            Ok(o) => o,
+            Err(e) => return,
+        };
+    let mut action_tiles = match open_tiles_as_struct(action_chunk_x as i32, action_chunk_y as i32)
+    {
+        Ok(o) => o,
+        Err(e) => return,
+    };
     let mut remove_entity = false;
     let mut add_entity = false;
     let mut chunk_x_to_add = action_chunk_x;
@@ -126,10 +134,12 @@ pub fn execute_action(action: PostData) {
         "spawn" => {
             let action_x: i32 = action.params["x"].parse::<i32>().unwrap();
             let action_y: i32 = action.params["y"].parse::<i32>().unwrap();
+
             let units = Entity::generate_default_units();
             let mut entity = Entity {
                 x: w_p.chunk_size as i32 * action_chunk_x + action_x,
                 y: w_p.chunk_size as i32 * action_chunk_y as i32 + action_y,
+                alive: true,
                 relative_x: action_x,
                 relative_y: action_y,
                 experience: 0,
@@ -157,6 +167,33 @@ pub fn execute_action(action: PostData) {
                 return;
             }
             let e = action_entities.entities.get_mut(&id).unwrap();
+            match action.params["move_dir"].as_str() {
+                "up" => {
+                    if e.chunk_y == 0 && e.relative_y == 0 {
+                        return;
+                    }
+                }
+                "down" => {
+                    if e.chunk_y == w_p.world_height as i32 - 1
+                        && e.relative_y == w_p.chunk_size as i32 - 1
+                    {
+                        return;
+                    }
+                }
+                "left" => {
+                    if e.chunk_x == 0 && e.relative_x == 0 {
+                        return;
+                    }
+                }
+                "right" => {
+                    if e.chunk_x == w_p.world_width as i32 - 1
+                        && e.relative_y == w_p.chunk_size as i32 - 1
+                    {
+                        return;
+                    }
+                }
+                _ => {}
+            };
             e.move_dir(action.params["move_dir"].to_string());
             if e.relative_x < 0 {
                 remove_entity = true;
@@ -192,6 +229,8 @@ pub fn execute_action(action: PostData) {
             }
             if e.resources.get_mut("food").unwrap_or(&mut 0) > &mut 0 {
                 *e.resources.get_mut("food").unwrap_or(&mut 0) -= 1;
+            } else {
+                e.damage("starve".to_string());
             }
             let mut standing_tile = Tile::default();
             for row in action_tiles.tiles.iter() {
@@ -242,9 +281,6 @@ pub fn execute_action(action: PostData) {
                     }
                     _ => {}
                 };
-                if target_entity.units.values().len() <= 0 {
-                    action_entities.entities.remove(&target_id);
-                }
             }
         }
         "gather_resource" => {
@@ -280,6 +316,10 @@ pub fn execute_action(action: PostData) {
         }
         _ => {}
     };
+    let e = action_entities.entities.get_mut(&id).unwrap();
+    if e.units.values().len() <= 0 {
+        e.alive = false;
+    }
     if add_entity
         && chunk_x_to_add >= 0
         && chunk_x_to_add <= w_p.world_width as i32
@@ -287,7 +327,7 @@ pub fn execute_action(action: PostData) {
         && chunk_y_to_add <= w_p.world_height as i32
     {
         let mut add_entities =
-            open_entities_as_struct(chunk_x_to_add as i32, chunk_y_to_add as i32);
+            open_entities_as_struct(chunk_x_to_add as i32, chunk_y_to_add as i32).unwrap();
         let e = action_entities.entities.get(&id).unwrap();
         add_entities.entities.insert(id, e.clone());
         write_entities_to_file(chunk_x_to_add, chunk_y_to_add, add_entities);

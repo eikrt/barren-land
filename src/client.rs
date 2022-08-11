@@ -13,40 +13,20 @@ use std::env;
 use std::time::SystemTime;
 use std::{thread, time};
 pub const INPUT_DELAY: u64 = 500;
-#[derive(Clone)]
-pub struct ClientPlayer {
-    x: i32,
-    y: i32,
-    relative_x: i32,
-    relative_y: i32,
-    chunk_x: i32,
-    chunk_y: i32,
-    render_x: i32,
-    render_y: i32,
-    level: i32,
-    experience: i32,
-    hp: i32,
-    energy: i32,
-    autoattack_change: u64,
-    autoattack_time: u64,
-    special_attack_change: u64,
-    special_attack_time: u64,
-    stats: CharacterStats,
-    units: HashMap<u64, Unit>,
-    resources: HashMap<String, i32>,
-}
 pub struct Camera {
     x: i32,
     y: i32,
 }
 pub struct Client {
+    pub autoattack_change: u64,
+    pub autoattack_time: u64,
+    pub special_attack_change: u64,
+    pub special_attack_time: u64,
     pub running: bool,
     pub move_dir: char,
     pub attacking: bool,
     pub endless_move_mode: bool,
     pub input_change: u64,
-    pub render_x: i32,
-    pub render_y: i32,
     pub target: Entity,
     pub has_target: bool,
     pub camera: Camera,
@@ -56,12 +36,14 @@ pub struct Client {
     pub target_index: usize,
     pub view: String,
     pub player_inited: bool,
-    pub client_player: ClientPlayer,
+    pub client_player: Entity,
     pub current_world_properties: WorldProperties,
     pub standing_tile: Tile,
     pub standing_entity: Entity,
     pub graphics_mode: String,
     pub ui: UiType,
+    pub render_x: i32,
+    pub render_y: i32,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -77,7 +59,7 @@ impl Default for Client {
             attacking: false,
             endless_move_mode: false,
             input_change: 0,
-            render_x: 2,
+            render_x: 1,
             render_y: 1,
             target: Entity::default(),
             has_target: false,
@@ -87,27 +69,11 @@ impl Default for Client {
             standing_entity: Entity::default(),
             graphics_mode: "ui".to_string(),
             ui: UiType::default(),
-            client_player: ClientPlayer {
-                x: 2,
-                y: 2,
-                relative_x: 2,
-                relative_y: 2,
-                chunk_x: 0,
-                chunk_y: 0,
-                render_x: 2,
-                render_y: 2,
-                hp: 100,
-                energy: 100,
-                experience: 0,
-                level: 1,
-                autoattack_time: 1000,
-                autoattack_change: 0,
-                special_attack_time: 1000,
-                special_attack_change: 1000,
-                stats: CharacterStats::default(),
-                units: Entity::generate_default_units(),
-                resources: HashMap::new(),
-            },
+            client_player: Entity::default(),
+            autoattack_change: 0,
+            autoattack_time: 1000,
+            special_attack_time: 1000,
+            special_attack_change: 0,
         }
     }
 }
@@ -178,6 +144,7 @@ impl Client {
         let mut graphics_frontend = self.ui.get_type("curses".to_string());
         graphics_frontend.init();
         while self.running {
+            graphics_frontend.start_loop();
             let mut refresh_tiles = self.first_loop;
             let refresh_entities = true;
             let mut current_chunk_entities = Vec::new();
@@ -276,17 +243,7 @@ impl Client {
                                     continue;
                                 }
                                 if e_id == &id {
-                                    self.client_player.render_x = rel_x;
-                                    self.client_player.render_y = rel_y;
-                                    self.client_player.relative_x = entity.relative_x;
-                                    self.client_player.relative_y = entity.relative_y;
-                                    self.client_player.x = entity.x;
-                                    self.client_player.y = entity.y;
-                                    self.client_player.level = entity.level;
-                                    self.client_player.experience = entity.experience;
-                                    self.client_player.stats = entity.stats.clone();
-                                    self.client_player.units = entity.units.clone();
-                                    self.client_player.resources = entity.resources.clone();
+                                    self.client_player = entity.clone();
                                 } else if self.client_player.x == entity.x
                                     && self.client_player.y == entity.y
                                 {
@@ -383,6 +340,9 @@ impl Client {
                     if self.attacking {
                         graphics_frontend.draw_str_hud(1, 1, format!("/"));
                     }
+                    if !self.client_player.alive {
+                        self.view = "gameover".to_string();
+                    }
                 }
                 "map" => {
                     for row in self.current_world_map.iter() {
@@ -419,6 +379,9 @@ impl Client {
                         text_y += 1;
                     }
                 }
+                "gameover" => {
+                    graphics_frontend.draw_str(0,0,format!("The Barren Lands have consumed your tribe..."));
+                }
                 _ => {}
             }
             if targetable_entities.contains_key(&self.target.id) {
@@ -442,7 +405,7 @@ impl Client {
                             self.move_dir = 'd';
                         }
 
-                        't' => {
+                        'l' => {
                             self.endless_move_mode = !self.endless_move_mode;
                         }
                         'm' => match self.view.as_str() {
@@ -523,8 +486,8 @@ impl Client {
                             .await;
                         }
                         '1' => {
-                            if self.client_player.special_attack_change
-                                > self.client_player.special_attack_time
+                            if self.special_attack_change
+                                > self.special_attack_time
                             {
                                 attack(
                                     client.clone(),
@@ -536,12 +499,12 @@ impl Client {
                                         .to_string(),
                                 )
                                 .await;
-                                self.client_player.special_attack_change = 0;
+                                self.special_attack_change = 0;
                             }
                         }
                         '2' => {
-                            if self.client_player.special_attack_change
-                                > self.client_player.special_attack_time
+                            if self.special_attack_change
+                                > self.special_attack_time
                             {
                                 attack(
                                     client.clone(),
@@ -553,12 +516,12 @@ impl Client {
                                         .to_string(),
                                 )
                                 .await;
-                                self.client_player.special_attack_change = 0;
+                                self.special_attack_change = 0;
                             }
                         }
                         '3' => {
-                            if self.client_player.special_attack_change
-                                > self.client_player.special_attack_time
+                            if self.special_attack_change
+                                > self.special_attack_time
                             {
                                 attack(
                                     client.clone(),
@@ -570,12 +533,12 @@ impl Client {
                                         .to_string(),
                                 )
                                 .await;
-                                self.client_player.special_attack_change = 0;
+                                self.special_attack_change = 0;
                             }
                         }
                         '4' => {
-                            if self.client_player.special_attack_change
-                                > self.client_player.special_attack_time
+                            if self.special_attack_change
+                                > self.special_attack_time
                             {
                                 attack(
                                     client.clone(),
@@ -587,12 +550,12 @@ impl Client {
                                         .to_string(),
                                 )
                                 .await;
-                                self.client_player.special_attack_change = 0;
+                                self.special_attack_change = 0;
                             }
                         }
                         '5' => {
-                            if self.client_player.special_attack_change
-                                > self.client_player.special_attack_time
+                            if self.special_attack_change
+                                > self.special_attack_time
                             {
                                 attack(
                                     client.clone(),
@@ -604,14 +567,11 @@ impl Client {
                                         .to_string(),
                                 )
                                 .await;
-                                self.client_player.special_attack_change = 0;
+                                self.special_attack_change = 0;
                             }
                         }
                         _ => {}
                     }
-                    /*window.mv(0,0);
-                        window.addstr(&format!("{:?}", c));
-                    */
                 }
                 Some(Input::KeyDC) => self.running = false,
                 Some(_input) => {}
@@ -625,6 +585,10 @@ impl Client {
                     } else {
                         do_not_move = true;
                     }
+                    
+                    if self.client_player.chunk_y == 0 && self.client_player.relative_y == 0 {
+                        do_not_move = true;
+                    }
                     if !do_not_move {
                         move_player(
                             client.clone(),
@@ -636,7 +600,7 @@ impl Client {
                         self.client_player.y -= 1;
                         self.client_player.relative_y -= 1;
 
-                        if self.client_player.render_y < EDGE_Y as i32 {
+                        if self.render_y < EDGE_Y as i32 {
                             self.camera.y -= 1;
                         }
                     }
@@ -645,6 +609,9 @@ impl Client {
                     if self.input_change > INPUT_DELAY {
                         self.input_change = 0;
                     } else {
+                        do_not_move = true;
+                    }
+                    if self.client_player.chunk_x == 0 && self.client_player.relative_x == 0 {
                         do_not_move = true;
                     }
                     if !do_not_move {
@@ -658,7 +625,7 @@ impl Client {
                         self.client_player.x -= 1;
                         self.client_player.relative_x -= 1;
 
-                        if self.client_player.render_x < EDGE_X as i32 {
+                        if self.render_x < EDGE_X as i32 {
                             self.camera.x -= 1;
                         }
                     }
@@ -667,6 +634,9 @@ impl Client {
                     if self.input_change > INPUT_DELAY {
                         self.input_change = 0;
                     } else {
+                        do_not_move = true;
+                    }
+                    if self.client_player.chunk_y == self.current_world_properties.world_height as i32 - 1 && self.client_player.relative_y == self.current_world_properties.chunk_size as i32 - 1 {
                         do_not_move = true;
                     }
                     if !do_not_move {
@@ -680,7 +650,7 @@ impl Client {
                         self.client_player.y += 1;
                         self.client_player.relative_y += 1;
 
-                        if self.client_player.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
+                        if self.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
                             self.camera.y += 1;
                         }
                     }
@@ -689,6 +659,10 @@ impl Client {
                     if self.input_change > INPUT_DELAY {
                         self.input_change = 0;
                     } else {
+                        do_not_move = true;
+                    }
+
+                    if self.client_player.chunk_x == self.current_world_properties.world_width as i32 - 1 && self.client_player.relative_x == self.current_world_properties.chunk_size as i32 - 1 {
                         do_not_move = true;
                     }
                     if !do_not_move {
@@ -702,7 +676,7 @@ impl Client {
                         self.client_player.x += 1;
                         self.client_player.relative_x += 1;
 
-                        if self.client_player.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
+                        if self.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
                             self.camera.x += 1;
                         }
                     }
@@ -773,9 +747,9 @@ impl Client {
             let delta_as_millis = delta.as_millis() as u64;
             self.input_change += delta_as_millis as u64;
             if self.attacking {
-                self.client_player.autoattack_change += delta_as_millis;
-                self.client_player.special_attack_change += delta_as_millis;
-                if self.client_player.autoattack_change > self.client_player.autoattack_time {
+                self.autoattack_change += delta_as_millis;
+                self.special_attack_change += delta_as_millis;
+                if self.autoattack_change > self.autoattack_time {
                     attack(
                         client.clone(),
                         id,
@@ -785,7 +759,7 @@ impl Client {
                         "".to_string(),
                     )
                     .await;
-                    self.client_player.autoattack_change = 0;
+                    self.autoattack_change = 0;
                 }
             }
 
@@ -802,7 +776,7 @@ impl Client {
 async fn conduct_action(
     client: reqwest::Client,
     id: u64,
-    client_player: ClientPlayer,
+    client_player: Entity,
     target: Entity,
     action_type: String,
 ) {
@@ -829,7 +803,7 @@ async fn conduct_action(
 async fn attack(
     client: reqwest::Client,
     id: u64,
-    client_player: ClientPlayer,
+    client_player: Entity,
     target: Entity,
     attack_type: String,
     ability: String,
@@ -856,7 +830,7 @@ async fn attack(
     )
     .await;
 }
-async fn move_player(client: reqwest::Client, id: u64, dir: String, client_player: ClientPlayer) {
+async fn move_player(client: reqwest::Client, id: u64, dir: String, client_player: Entity) {
     match dir.as_str() {
         "up" => {
             post_to_queue(

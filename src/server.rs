@@ -62,11 +62,10 @@ pub fn open_tiles(x: i32, y: i32) -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded;
 }
-pub fn open_tiles_as_struct(x: i32, y: i32) -> Tiles {
+pub fn open_tiles_as_struct(x: i32, y: i32) -> Result<Tiles, std::io::Error> {
     let path = format!("world/chunks/chunk_{}_{}/tiles.dat", x, y);
-    let body = fs::read(path).unwrap();
-    let decoded: Tiles = bincode::deserialize(&body).unwrap_or(Tiles::default());
-    return decoded;
+    let body = fs::read(path)?;
+    Ok(bincode::deserialize(&body).unwrap())
 }
 pub fn open_entities(x: i32, y: i32) -> String {
     let path = format!("world/chunks/chunk_{}_{}/entities.dat", x, y);
@@ -75,15 +74,10 @@ pub fn open_entities(x: i32, y: i32) -> String {
     let encoded = serde_json::to_string(&decoded).unwrap();
     return encoded;
 }
-pub fn open_entities_as_struct(x: i32, y: i32) -> Entities {
+pub fn open_entities_as_struct(x: i32, y: i32) -> Result<Entities, Error> {
     let path = format!("world/chunks/chunk_{}_{}/entities.dat", x, y);
-    let body = fs::read(path).unwrap_or(Vec::new());
-    let decoded: Entities = bincode::deserialize(&body).unwrap_or(Entities {
-        entities: HashMap::new(),
-        x: 0,
-        y: 0,
-    });
-    return decoded;
+    let body = fs::read(path)?;
+    Ok(bincode::deserialize(&body).unwrap())
 }
 pub fn open_world_properties() -> String {
     let path = "world/world_properties.dat";
