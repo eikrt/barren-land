@@ -87,63 +87,68 @@ fn get_generated_chunk(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(3.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.01)
+    .with_octaves(8.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 4)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
     let biome_noise_2 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(4.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.02)
+    .with_octaves(8.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 5)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
     let biome_noise_3 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(5.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.03)
+    .with_octaves(8.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 6)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
     let biome_noise_4 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(6.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.04)
+    .with_octaves(8.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 7)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
     let biome_noise_5 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(7.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.07)
+    .with_octaves(1.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 8)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
     let biome_noise_6 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
     )
-    .with_freq(0.05)
-    .with_octaves(7.0 as u8)
-    .with_gain(1.0)
+    .with_freq(0.06)
+    .with_octaves(1.0 as u8)
+    .with_gain(0.1)
     .with_seed(seed * 9)
-    .with_lacunarity(0.2)
+    .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
-    let biome_threshold = 256.0;
+    let biome_threshold_1 = 156.0;
+    let biome_threshold_2 = 256.0;
+    let biome_threshold_3 = 156.0;
+    let biome_threshold_4 = 156.0;
+    let biome_threshold_5 = 156.0;
+    let biome_threshold_6 = 156.0;
     let mut biome_counts: HashMap<String, i32> = HashMap::new();
 
     biome_counts.insert("dunes".to_string(), 0);
@@ -169,21 +174,21 @@ fn get_generated_chunk(
                 chunk_x: x,
                 chunk_y: y,
                 h: height_noise[perlin_coord],
-                tile_type: "rock".to_string(),
+                tile_type: "barren_land".to_string(),
                 has_trees: false,
                 gathered: true,
             };
-            if biome_noise_1[perlin_coord] < biome_threshold {
+            if biome_noise_1[perlin_coord] < biome_threshold_1 {
                 biome = "dunes".to_string();
-            } else if biome_noise_6[perlin_coord] < biome_threshold {
+            } if biome_noise_2[perlin_coord] < biome_threshold_2 {
                 biome = "oasis".to_string();
-            } else if biome_noise_2[perlin_coord] < biome_threshold {
+            } if biome_noise_3[perlin_coord] < biome_threshold_3 {
                 biome = "ash_desert".to_string();
-            } else if biome_noise_3[perlin_coord] < biome_threshold {
+            } if biome_noise_4[perlin_coord] < biome_threshold_4 {
                 biome = "salt_desert".to_string();
-            } else if biome_noise_4[perlin_coord] < biome_threshold {
+            } if biome_noise_5[perlin_coord] < biome_threshold_5 {
                 biome = "ice_desert".to_string();
-            } else if biome_noise_5[perlin_coord] < biome_threshold {
+            } if biome_noise_6[perlin_coord] < biome_threshold_6 {
                 biome = "rock_desert".to_string();
             }
             *biome_counts.get_mut(&biome).unwrap() += 1;
