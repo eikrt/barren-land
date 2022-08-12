@@ -61,8 +61,8 @@ impl Default for Client {
             attacking: false,
             endless_move_mode: false,
             input_change: 0,
-            render_x: 1,
-            render_y: 1,
+            render_x: 2,
+            render_y: 2,
             target: Entity::default(),
             has_target: false,
             camera: Camera { x: 0, y: 0 },
@@ -94,6 +94,11 @@ impl Client {
             username = args[1].clone();
             let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
             id = calculate_hash(&to_hashed);
+        }
+        else {
+            endwin();
+            println!("Please provide username and password as arguments");
+            return;
         }
         let server_clientid: ClientId =
             load_search_entity_clientid(client.clone(), username.clone(), id).await;

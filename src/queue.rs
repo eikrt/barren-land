@@ -159,6 +159,7 @@ pub fn execute_action(action: PostData) {
             *entity.stats.abilities.get_mut("3").unwrap() = "LEVEL 4".to_string();
             *entity.stats.abilities.get_mut("4").unwrap() = "LEVEL 5".to_string();
             *entity.stats.abilities.get_mut("5").unwrap() = "LEVEL 6".to_string();
+            update_entity_list(id, entity.clone());
             action_entities.entities.insert(id, entity);
         }
         "move" => {

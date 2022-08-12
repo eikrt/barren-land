@@ -19,7 +19,7 @@ pub struct UiType {
     curses_impl: Curses,
 }
 impl UiType {
-    pub fn get_type(&self, ui_type: String) -> Box<dyn UI>{
+    pub fn get_type(&self, ui_type: String) -> Box<dyn UI> {
         match ui_type.as_str() {
             "curses" => Box::new(Curses::default()),
             _ => Box::new(Curses::default()),
@@ -219,6 +219,13 @@ impl Default for Curses {
                         color: 10,
                     },
                 ),
+                (
+                    "ruins".to_string(),
+                    UiTile {
+                        symbol: "r".to_string(),
+                        color: 9,
+                    },
+                ),
             ]),
             ui_entities: HashMap::from([
                 (
@@ -303,10 +310,19 @@ impl UI for Curses {
             return;
         }
         self.window.mv(rel_y + MARGIN_Y, rel_x + MARGIN_X);
-        let attributes = ColorPair(self.ui_tiles[&tile.tile_type].color);
+        let attributes = ColorPair(
+            self.ui_tiles
+                .get(&tile.tile_type)
+                .unwrap_or(&UiTile::not_found())
+                .color,
+        );
         self.window.attron(attributes);
-        self.window
-            .addstr(self.ui_tiles[&tile.tile_type].symbol.clone());
+        self.window.addstr(
+            self.ui_tiles
+                .get(&tile.tile_type)
+                .unwrap_or(&UiTile::not_found())
+                .symbol.clone(),
+        );
     }
     fn draw_entity(&self, entity: Entity, rel_x: i32, rel_y: i32) {
         if rel_x < 0
@@ -335,7 +351,7 @@ impl UI for Curses {
     fn draw_world_tile(&self, tile: WorldMapTile) {
         self.window.mv(tile.y + MARGIN_Y, tile.x + MARGIN_X);
 
-        let attributes = ColorPair(self.ui_world_map_tiles[&tile.chunk_type].color);
+        let attributes = ColorPair(self.ui_world_map_tiles.get(&tile.chunk_type).unwrap_or(&UiTile::not_found()).color);
         self.window.attron(attributes);
         self.window
             .addstr(self.ui_world_map_tiles[&tile.chunk_type].symbol.clone());
@@ -387,8 +403,7 @@ impl UI for Curses {
     fn end_win(&mut self) {
         endwin();
     }
-    fn start_loop(&mut self) {
-    }
+    fn start_loop(&mut self) {}
     fn end_loop(&mut self) {
         self.window.refresh();
         self.window.erase();

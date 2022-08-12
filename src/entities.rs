@@ -11,6 +11,11 @@ pub struct Unit {
     pub energy: i32,
     pub profession: String,
     pub stats: UnitStats,
+    pub items: HashMap<String, Item>
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Item {
+    pub name: String,
 }
 pub trait Soldier {
     fn soldier() -> Unit;
@@ -25,6 +30,12 @@ impl Soldier for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
+            items: HashMap::from([
+                ("hide".to_string(),
+                Item {
+                    name: "hide".to_string(),
+                }
+                )]),
         }
     }
 }
@@ -41,6 +52,12 @@ impl Gatherer for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
+            items: HashMap::from([(
+                "hide".to_string(),
+                Item {
+                    name: "hide".to_string(),
+                }
+            )]),
         }
     }
 }
@@ -57,6 +74,12 @@ impl Worker for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
+            items: HashMap::from([(
+                "hide".to_string(),
+                Item {
+                    name: "hide".to_string(),
+                }
+            )]),
         }
     }
 }
@@ -73,6 +96,29 @@ impl Crafter for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
+            items: HashMap::from([(
+                "hide".to_string(),
+                Item {
+                    name: "hide".to_string(),
+                }
+            )]),
+        }
+    }
+}
+pub trait Donkey {
+    fn donkey() -> Unit;
+}
+impl Donkey for Unit {
+    fn donkey () -> Unit {
+        let mut rng = rand::thread_rng();
+        let id: u64 = rng.gen::<u64>();
+        Unit {
+            name: get_name(),
+            profession: "carrier".to_string(),
+            hp: 100,
+            energy: 100,
+            stats: UnitStats::default(),
+            items: HashMap::new(),
         }
     }
 }
@@ -98,6 +144,10 @@ impl GenerateDefault for Entity {
         for i in 0..4 {
             let id: u64 = rng.gen::<u64>();
             units.insert(id, Unit::crafter());
+        }
+        for i in 0..4 {
+            let id: u64 = rng.gen::<u64>();
+            units.insert(id, Unit::donkey());
         }
         return units;
     }

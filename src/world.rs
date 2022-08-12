@@ -143,12 +143,12 @@ fn get_generated_chunk(
     .with_seed(seed * 9)
     .with_lacunarity(0.1)
     .generate_scaled(0.0, 512.0);
-    let biome_threshold_1 = 156.0;
-    let biome_threshold_2 = 256.0;
+    let biome_threshold_1 = 356.0;
+    let biome_threshold_2 = 156.0;
     let biome_threshold_3 = 156.0;
     let biome_threshold_4 = 156.0;
-    let biome_threshold_5 = 156.0;
-    let biome_threshold_6 = 156.0;
+    let biome_threshold_5 = 22.0;
+    let biome_threshold_6 = 56.0;
     let mut biome_counts: HashMap<String, i32> = HashMap::new();
 
     biome_counts.insert("dunes".to_string(), 0);
@@ -180,15 +180,20 @@ fn get_generated_chunk(
             };
             if biome_noise_1[perlin_coord] < biome_threshold_1 {
                 biome = "dunes".to_string();
-            } if biome_noise_2[perlin_coord] < biome_threshold_2 {
+            }
+            if biome_noise_2[perlin_coord] < biome_threshold_2 {
                 biome = "oasis".to_string();
-            } if biome_noise_3[perlin_coord] < biome_threshold_3 {
+            }
+            if biome_noise_3[perlin_coord] < biome_threshold_3 {
                 biome = "ash_desert".to_string();
-            } if biome_noise_4[perlin_coord] < biome_threshold_4 {
+            }
+            if biome_noise_4[perlin_coord] < biome_threshold_4 {
                 biome = "salt_desert".to_string();
-            } if biome_noise_5[perlin_coord] < biome_threshold_5 {
+            }
+            if biome_noise_5[perlin_coord] < biome_threshold_5 {
                 biome = "ice_desert".to_string();
-            } if biome_noise_6[perlin_coord] < biome_threshold_6 {
+            }
+            if biome_noise_6[perlin_coord] < biome_threshold_6 {
                 biome = "rock_desert".to_string();
             }
             *biome_counts.get_mut(&biome).unwrap() += 1;
@@ -203,7 +208,12 @@ fn get_generated_chunk(
                             entities_map.insert(id, biome_entity);
                         }*/
                     }
-                    "ash_desert" => tile.tile_type = "ash".to_string(),
+                    "ash_desert" => {
+                        tile.tile_type = "ash".to_string();
+                        if rng.gen_range(0..10) == 1 {
+                            tile.tile_type = "ruins".to_string();
+                        }
+                    },
                     "salt_desert" => tile.tile_type = "salt".to_string(),
                     "ice_desert" => tile.tile_type = "ice".to_string(),
                     "rock_desert" => tile.tile_type = "gravel".to_string(),
