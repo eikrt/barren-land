@@ -44,6 +44,8 @@ pub struct Client {
     pub ui: UiType,
     pub render_x: i32,
     pub render_y: i32,
+    pub player_x: i32,
+    pub player_y: i32,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -74,6 +76,8 @@ impl Default for Client {
             autoattack_time: 1000,
             special_attack_time: 1000,
             special_attack_change: 0,
+            player_x: 1,
+            player_y: 1,
         }
     }
 }
@@ -91,6 +95,8 @@ impl Client {
             let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
             id = calculate_hash(&to_hashed);
         }
+        let server_clientid: ClientId =
+            load_search_entity_clientid(client.clone(), username.clone(), id).await;
         if !load_check_if_client_with_id(
             // if not client with id in server, spawn
             client.clone(),
@@ -101,6 +107,8 @@ impl Client {
         )
         .await
         {
+            self.client_player.chunk_x = rng.gen_range(0..self.current_world_properties.world_width - 1) as i32;
+            self.client_player.chunk_y = rng.gen_range(0..self.current_world_properties.world_height - 1) as i32;
             post_to_queue(
                 client.clone(),
                 PostData {
@@ -109,11 +117,11 @@ impl Client {
                         ("id".to_string(), id.to_string()),
                         (
                             "x".to_string(),
-                            format!("{}", self.client_player.x).to_string(),
+                            format!("{}", 12).to_string(),
                         ),
                         (
                             "y".to_string(),
-                            format!("{}", self.client_player.y).to_string(),
+                            format!("{}", 12).to_string(),
                         ),
                         (
                             "chunk_x".to_string(),
@@ -130,11 +138,9 @@ impl Client {
             )
             .await;
         } else {
-        }
-        let server_clientid: ClientId =
-            load_search_entity_clientid(client.clone(), username.clone(), id).await;
         self.client_player.chunk_x = server_clientid.chunk_x;
         self.client_player.chunk_y = server_clientid.chunk_y;
+        }
         self.camera.x = self.client_player.chunk_x
             * self.current_world_properties.chunk_size as i32
             - self.current_world_properties.chunk_size as i32 / 2;
@@ -244,6 +250,8 @@ impl Client {
                                 }
                                 if e_id == &id {
                                     self.client_player = entity.clone();
+                                    self.player_x = rel_x;
+                                    self.player_y = rel_y;
                                 } else if self.client_player.x == entity.x
                                     && self.client_player.y == entity.y
                                 {
@@ -600,7 +608,7 @@ impl Client {
                         self.client_player.y -= 1;
                         self.client_player.relative_y -= 1;
 
-                        if self.render_y < EDGE_Y as i32 {
+                        if self.player_y < EDGE_Y as i32 {
                             self.camera.y -= 1;
                         }
                     }
@@ -625,7 +633,7 @@ impl Client {
                         self.client_player.x -= 1;
                         self.client_player.relative_x -= 1;
 
-                        if self.render_x < EDGE_X as i32 {
+                        if self.player_x < EDGE_X as i32 {
                             self.camera.x -= 1;
                         }
                     }
@@ -650,7 +658,7 @@ impl Client {
                         self.client_player.y += 1;
                         self.client_player.relative_y += 1;
 
-                        if self.render_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
+                        if self.player_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
                             self.camera.y += 1;
                         }
                     }
@@ -676,7 +684,7 @@ impl Client {
                         self.client_player.x += 1;
                         self.client_player.relative_x += 1;
 
-                        if self.render_x > (SCREEN_WIDTH - EDGE_X) as i32 {
+                        if self.player_x > (SCREEN_WIDTH - EDGE_X) as i32 {
                             self.camera.x += 1;
                         }
                     }
