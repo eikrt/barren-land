@@ -207,14 +207,19 @@ fn get_generated_chunk(
                         if rng.gen_range(0..32) == 1 {
                             entities_map.insert(id, biome_entity);
                         }*/
-                    }
+                    },
                     "ash_desert" => {
                         tile.tile_type = "ash".to_string();
                         if rng.gen_range(0..10) == 1 {
                             tile.tile_type = "ruins".to_string();
                         }
                     },
-                    "salt_desert" => tile.tile_type = "salt".to_string(),
+                    "salt_desert" => {
+                        tile.tile_type = "salt".to_string();
+                        if rng.gen_range(0..10) == 1 {
+                            tile.tile_type = "shipwreck".to_string();
+                        }
+                    },
                     "ice_desert" => tile.tile_type = "ice".to_string(),
                     "rock_desert" => tile.tile_type = "gravel".to_string(),
                     "barren_land" => tile.tile_type = "sand".to_string(),
@@ -222,7 +227,7 @@ fn get_generated_chunk(
                         tile.tile_type = "grass".to_string();
                         tile.has_trees = true;
                         tile.gathered = false;
-                    }
+                    },
 
                     _ => tile.tile_type = "sand".to_string(),
                 };

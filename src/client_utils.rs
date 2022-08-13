@@ -3,6 +3,7 @@ use crate::server::ClientId;
 use crate::world::*;
 use crate::entities::*;
 use crate::tiles::*;
+use std::error::Error;
 use bincode;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
@@ -124,15 +125,14 @@ pub async fn load_search_entity_clientid(
 }
 pub async fn load_world_properties(
     client: reqwest::Client,
-) -> WorldProperties{
+) -> Result<WorldProperties, Box<dyn Error>>{
     let resp = client
         .get(format!("http://localhost:8080/world_properties"))
         .send()
-        .await
-        .unwrap();
+        .await?;
     let body = resp.text().await.unwrap();
     let decoded = serde_json::from_str(&body).unwrap();
-    return decoded;
+    Ok(decoded)
 }
 pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
     let _res = client

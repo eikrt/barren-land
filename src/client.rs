@@ -86,7 +86,15 @@ impl Client {
         let args: Vec<String> = env::args().collect();
         let mut compare_time = SystemTime::now();
         let client = reqwest::Client::new();
-        self.current_world_properties = load_world_properties(client.clone()).await;
+        self.current_world_properties = WorldProperties::default();
+        match load_world_properties(client.clone()).await {
+            Ok(w) => self.current_world_properties = w,
+            Err(e) => {
+                endwin();
+                println!("Could not connect to the server!");
+                return;
+            }
+        };
         let mut rng = rand::thread_rng();
         let mut id = rng.gen::<u64>();
         let mut username = "".to_string();
@@ -727,7 +735,6 @@ impl Client {
                 }
                 _ => {}
             }
-
             if !self.endless_move_mode {
                 self.move_dir = '?';
             }
@@ -775,8 +782,6 @@ impl Client {
                     self.autoattack_change = 0;
                 }
             }
-
-            // window.addstr(format!("{}", self.input_change));
             // draw hud
             graphics_frontend.end_loop();
             thread::sleep(time::Duration::from_millis(REFRESH_TIME));

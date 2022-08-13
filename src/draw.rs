@@ -226,6 +226,13 @@ impl Default for Curses {
                         color: 9,
                     },
                 ),
+                (
+                    "shipwreck".to_string(),
+                    UiTile {
+                        symbol: "s".to_string(),
+                        color: 9,
+                    },
+                ),
             ]),
             ui_entities: HashMap::from([
                 (
