@@ -102,8 +102,7 @@ impl Client {
             username = args[1].clone();
             let to_hashed: String = args[2].parse::<String>().unwrap() + &username;
             id = calculate_hash(&to_hashed);
-        }
-        else {
+        } else {
             endwin();
             println!("Please provide username and password as arguments");
             return;
@@ -120,22 +119,18 @@ impl Client {
         )
         .await
         {
-            self.client_player.chunk_x = rng.gen_range(0..self.current_world_properties.world_width - 1) as i32;
-            self.client_player.chunk_y = rng.gen_range(0..self.current_world_properties.world_height - 1) as i32;
+            self.client_player.chunk_x =
+                rng.gen_range(0..self.current_world_properties.world_width - 1) as i32;
+            self.client_player.chunk_y =
+                rng.gen_range(0..self.current_world_properties.world_height - 1) as i32;
             post_to_queue(
                 client.clone(),
                 PostData {
                     params: HashMap::from([
                         ("command".to_string(), "spawn".to_string()),
                         ("id".to_string(), id.to_string()),
-                        (
-                            "x".to_string(),
-                            format!("{}", 12).to_string(),
-                        ),
-                        (
-                            "y".to_string(),
-                            format!("{}", 12).to_string(),
-                        ),
+                        ("x".to_string(), format!("{}", 6).to_string()),
+                        ("y".to_string(), format!("{}", 6).to_string()),
                         (
                             "chunk_x".to_string(),
                             format!("{}", self.client_player.chunk_x).to_string(),
@@ -151,15 +146,13 @@ impl Client {
             )
             .await;
         } else {
-        self.client_player.chunk_x = server_clientid.chunk_x;
-        self.client_player.chunk_y = server_clientid.chunk_y;
+            self.client_player.chunk_x = server_clientid.chunk_x;
+            self.client_player.chunk_y = server_clientid.chunk_y;
         }
-        self.camera.x = self.client_player.chunk_x
-            * self.current_world_properties.chunk_size as i32
-            - self.current_world_properties.chunk_size as i32 / 2;
-        self.camera.y = self.client_player.chunk_y
-            * self.current_world_properties.chunk_size as i32
-            - self.current_world_properties.chunk_size as i32 / 4;
+        self.camera.x =
+            self.client_player.chunk_x * self.current_world_properties.chunk_size as i32;
+        self.camera.y =
+            self.client_player.chunk_y * self.current_world_properties.chunk_size as i32;
         let mut graphics_frontend = self.ui.get_type("curses".to_string());
         graphics_frontend.init();
         while self.running {
@@ -292,74 +285,82 @@ impl Client {
                     }
                     // draw hud
                     graphics_frontend.draw_hud();
-                    graphics_frontend.draw_str_hud(2, 2, username.clone());
-                    graphics_frontend
-                        .draw_str_hud(2, 16, format!("ABILITIES: ").to_string());
+                    graphics_frontend.draw_str_hud(1, 1, username.clone());
+                    graphics_frontend.draw_str_hud(1, 16, format!("ABILITIES: ").to_string());
                     graphics_frontend.draw_str_hud(
-                        3,
+                        2,
                         16,
                         format!("1. {}", self.client_player.stats.abilities["1"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
-                        4,
+                        3,
                         16,
                         format!("2. {}", self.client_player.stats.abilities["2"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
-                        5,
+                        4,
                         16,
                         format!("3. {}", self.client_player.stats.abilities["3"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
-                        6,
+                        5,
                         16,
                         format!("4. {}", self.client_player.stats.abilities["4"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
-                        7,
+                        6,
                         16,
                         format!("5. {}", self.client_player.stats.abilities["5"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
-                        9,
-                        2,
+                        6,
+                        1,
                         format!("UNITS: {}", self.client_player.units.values().len()).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
                         4,
-                        2,
+                        1,
                         format!("LEVEL: {}", self.client_player.level).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
                         5,
-                        2,
+                        1,
                         format!("EXPERIENCE: {}", self.client_player.experience).to_string(),
                     );
                     // draw target
 
-                    graphics_frontend
-                        .draw_str_hud(10, 2, format!("TILE: {}", self.standing_tile.tile_type));
                     graphics_frontend.draw_str_hud(
-                        10,
-                        18,
+                        1,
+                        60,
+                        format!("TILE: {}", self.standing_tile.tile_type),
+                    );
+                    graphics_frontend.draw_str_hud(
+                        2,
+                        60,
                         format!("ENTITY: {}", self.standing_entity.entity_type),
+                    );
+                    graphics_frontend.draw_str_hud(
+                        1,
+                        32,
+                        format!("TARGET TYPE: {}", self.target.entity_type),
+                    );
+                    graphics_frontend.draw_str_hud(
+                        2,
+                        32,
+                        format!("TARGET NAME : {}", self.target.name),
                     );
                     graphics_frontend.draw_str_hud(
                         3,
                         32,
-                        format!("TARGET TYPE: {}", self.target.entity_type),
-                    );
-                    graphics_frontend
-                        .draw_str_hud(4, 32, format!("TARGET NAME : {}", self.target.name));
-                    graphics_frontend.draw_str_hud(
-                        5,
-                        32,
                         format!("TARGET UNITS: {}", self.target.units.values().len()),
                     );
-                    graphics_frontend
-                        .draw_str_hud(7, 32, format!("TARGET LEVEL: {}", self.target.level));
+                    graphics_frontend.draw_str_hud(
+                        4,
+                        32,
+                        format!("TARGET LEVEL: {}", self.target.level),
+                    );
                     if self.attacking {
-                        graphics_frontend.draw_str_hud(1, 1, format!("/"));
+                        graphics_frontend.draw_str_hud(0, 1, format!("/"));
                     }
                     if !self.client_player.alive {
                         self.view = "gameover".to_string();
@@ -373,35 +374,55 @@ impl Client {
                     }
                 }
                 "unit" => {
-                    graphics_frontend.draw_str(0,0,format!("UNIT LIST"));
+                    graphics_frontend.draw_str(0, 0, format!("UNIT LIST"));
                     let column_margin = 14;
                     let mut text_y = 1;
                     for (_id, unit) in self.client_player.units.iter() {
-                        graphics_frontend.draw_str(2,0,(format!("NAME")));
-                        graphics_frontend.draw_str(2 + text_y,0,format!("{}", unit.name));
-                        graphics_frontend.draw_str(2,column_margin,format!("OCCUPATION"));
-                        graphics_frontend.draw_str(2 + text_y, column_margin, format!("{}", unit.profession));
-                        graphics_frontend.draw_str(2,column_margin*2,format!("HP"));
-                        graphics_frontend.draw_str(2 + text_y, column_margin * 2, format!("{}", unit.hp));
-                        graphics_frontend.draw_str(2, column_margin*3, format!("ENERGY"));
-                        graphics_frontend.draw_str(2 + text_y, column_margin*3, format!("{}", unit.energy));
+                        graphics_frontend.draw_str(2, 0, (format!("NAME")));
+                        graphics_frontend.draw_str(2 + text_y, 0, format!("{}", unit.name));
+                        graphics_frontend.draw_str(2, column_margin, format!("OCCUPATION"));
+                        graphics_frontend.draw_str(
+                            2 + text_y,
+                            column_margin,
+                            format!("{}", unit.profession),
+                        );
+                        graphics_frontend.draw_str(2, column_margin * 2, format!("HP"));
+                        graphics_frontend.draw_str(
+                            2 + text_y,
+                            column_margin * 2,
+                            format!("{}", unit.hp),
+                        );
+                        graphics_frontend.draw_str(2, column_margin * 3, format!("ENERGY"));
+                        graphics_frontend.draw_str(
+                            2 + text_y,
+                            column_margin * 3,
+                            format!("{}", unit.energy),
+                        );
                         text_y += 1;
                     }
                 }
                 "resources" => {
-                    graphics_frontend.draw_str(0,0,format!("STATUS"));
+                    graphics_frontend.draw_str(0, 0, format!("STATUS"));
                     let column_margin = 14;
                     let mut text_y = 1;
-                    graphics_frontend.draw_str(2,0,format!("RESOURCE"));
-                    graphics_frontend.draw_str(2,column_margin,format!("AMOUNT"));
+                    graphics_frontend.draw_str(2, 0, format!("RESOURCE"));
+                    graphics_frontend.draw_str(2, column_margin, format!("AMOUNT"));
                     for (key, resource) in self.client_player.resources.iter() {
-                        graphics_frontend.draw_str(2 + text_y,0,format!("{}", key));
-                        graphics_frontend.draw_str(2 + text_y, column_margin, format!("{}", resource));
+                        graphics_frontend.draw_str(2 + text_y, 0, format!("{}", key));
+                        graphics_frontend.draw_str(
+                            2 + text_y,
+                            column_margin,
+                            format!("{}", resource),
+                        );
                         text_y += 1;
                     }
                 }
                 "gameover" => {
-                    graphics_frontend.draw_str(0,0,format!("The Barren Lands have consumed your tribe..."));
+                    graphics_frontend.draw_str(
+                        0,
+                        0,
+                        format!("The Barren Lands have consumed your tribe..."),
+                    );
                 }
                 _ => {}
             }
@@ -507,9 +528,7 @@ impl Client {
                             .await;
                         }
                         '1' => {
-                            if self.special_attack_change
-                                > self.special_attack_time
-                            {
+                            if self.special_attack_change > self.special_attack_time {
                                 attack(
                                     client.clone(),
                                     id,
@@ -524,9 +543,7 @@ impl Client {
                             }
                         }
                         '2' => {
-                            if self.special_attack_change
-                                > self.special_attack_time
-                            {
+                            if self.special_attack_change > self.special_attack_time {
                                 attack(
                                     client.clone(),
                                     id,
@@ -541,9 +558,7 @@ impl Client {
                             }
                         }
                         '3' => {
-                            if self.special_attack_change
-                                > self.special_attack_time
-                            {
+                            if self.special_attack_change > self.special_attack_time {
                                 attack(
                                     client.clone(),
                                     id,
@@ -558,9 +573,7 @@ impl Client {
                             }
                         }
                         '4' => {
-                            if self.special_attack_change
-                                > self.special_attack_time
-                            {
+                            if self.special_attack_change > self.special_attack_time {
                                 attack(
                                     client.clone(),
                                     id,
@@ -575,9 +588,7 @@ impl Client {
                             }
                         }
                         '5' => {
-                            if self.special_attack_change
-                                > self.special_attack_time
-                            {
+                            if self.special_attack_change > self.special_attack_time {
                                 attack(
                                     client.clone(),
                                     id,
@@ -606,7 +617,7 @@ impl Client {
                     } else {
                         do_not_move = true;
                     }
-                    
+
                     if self.client_player.chunk_y == 0 && self.client_player.relative_y == 0 {
                         do_not_move = true;
                     }
@@ -657,7 +668,11 @@ impl Client {
                     } else {
                         do_not_move = true;
                     }
-                    if self.client_player.chunk_y == self.current_world_properties.world_height as i32 - 1 && self.client_player.relative_y == self.current_world_properties.chunk_size as i32 - 1 {
+                    if self.client_player.chunk_y
+                        == self.current_world_properties.world_height as i32 - 1
+                        && self.client_player.relative_y
+                            == self.current_world_properties.chunk_size as i32 - 1
+                    {
                         do_not_move = true;
                     }
                     if !do_not_move {
@@ -683,7 +698,11 @@ impl Client {
                         do_not_move = true;
                     }
 
-                    if self.client_player.chunk_x == self.current_world_properties.world_width as i32 - 1 && self.client_player.relative_x == self.current_world_properties.chunk_size as i32 - 1 {
+                    if self.client_player.chunk_x
+                        == self.current_world_properties.world_width as i32 - 1
+                        && self.client_player.relative_x
+                            == self.current_world_properties.chunk_size as i32 - 1
+                    {
                         do_not_move = true;
                     }
                     if !do_not_move {

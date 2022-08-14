@@ -1,0 +1,10 @@
+services:
+  client:
+    build:
+      ./docker/prod/client
+  server:
+    build:
+      ./docker/prod/server
+  generator:
+    build:
+      ./docker/prod/generator
