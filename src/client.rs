@@ -288,7 +288,7 @@ impl Client {
                         graphics_frontend.draw_cursor(rel_y, rel_x);
                     }
                     // draw hud
-                    let color = "hud_text".to_string();
+                    let mut color = "hud_text".to_string();
                     graphics_frontend.draw_hud();
                     graphics_frontend.draw_str_hud(color.clone(), 1, 1, username.clone());
                     graphics_frontend.draw_str_hud(
@@ -297,36 +297,52 @@ impl Client {
                         16,
                         format!("ABILITIES: ").to_string(),
                     );
+                    if self.client_player.level < 1 {
+                        color = "hud_select".to_string();
+                    }
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         2,
                         16,
                         format!("1. {}", self.client_player.stats.abilities["1"]).to_string(),
                     );
+                    if self.client_player.level < 2 {
+                        color = "hud_select".to_string();
+                    }
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         3,
                         16,
                         format!("2. {}", self.client_player.stats.abilities["2"]).to_string(),
                     );
+                    if self.client_player.level < 3 {
+                        color = "hud_select".to_string();
+                    }
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         4,
                         16,
                         format!("3. {}", self.client_player.stats.abilities["3"]).to_string(),
                     );
+                    if self.client_player.level < 4 {
+                        color = "hud_select".to_string();
+                    }
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         5,
                         16,
                         format!("4. {}", self.client_player.stats.abilities["4"]).to_string(),
                     );
+                    if self.client_player.level < 5 {
+                        color = "hud_select".to_string();
+                    }
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         6,
                         16,
                         format!("5. {}", self.client_player.stats.abilities["5"]).to_string(),
                     );
+                    color = "hud_text".to_string();
                     graphics_frontend.draw_str_hud(
                         color.clone(),
                         6,
@@ -603,8 +619,7 @@ impl Client {
                         );
                         text_y += 1;
                     }
-                    if self.menu_select > self.client_player.units.values().len() as i32
-                    {
+                    if self.menu_select > self.client_player.units.values().len() as i32 {
                         self.menu_select = 1;
                     }
                     if self.menu_select < 1 {
@@ -835,77 +850,87 @@ impl Client {
                         }
                         '1' => {
                             if self.special_attack_change > self.special_attack_time {
-                                attack(
-                                    client.clone(),
-                                    id,
-                                    self.client_player.clone(),
-                                    self.target.clone(),
-                                    "special".to_string(),
-                                    format!("{}", self.client_player.stats.abilities["1"])
-                                        .to_string(),
-                                )
-                                .await;
-                                self.special_attack_change = 0;
+                                if self.client_player.level > 0 {
+                                    attack(
+                                        client.clone(),
+                                        id,
+                                        self.client_player.clone(),
+                                        self.target.clone(),
+                                        "special".to_string(),
+                                        format!("{}", self.client_player.stats.abilities["1"])
+                                            .to_string(),
+                                    )
+                                    .await;
+                                    self.special_attack_change = 0;
+                                }
                             }
                         }
                         '2' => {
-                            if self.special_attack_change > self.special_attack_time {
-                                attack(
-                                    client.clone(),
-                                    id,
-                                    self.client_player.clone(),
-                                    self.target.clone(),
-                                    "special".to_string(),
-                                    format!("{}", self.client_player.stats.abilities["2"])
-                                        .to_string(),
-                                )
-                                .await;
-                                self.special_attack_change = 0;
+                            if self.client_player.level > 1 {
+                                if self.special_attack_change > self.special_attack_time {
+                                    attack(
+                                        client.clone(),
+                                        id,
+                                        self.client_player.clone(),
+                                        self.target.clone(),
+                                        "special".to_string(),
+                                        format!("{}", self.client_player.stats.abilities["2"])
+                                            .to_string(),
+                                    )
+                                    .await;
+                                    self.special_attack_change = 0;
+                                }
                             }
                         }
                         '3' => {
-                            if self.special_attack_change > self.special_attack_time {
-                                attack(
-                                    client.clone(),
-                                    id,
-                                    self.client_player.clone(),
-                                    self.target.clone(),
-                                    "special".to_string(),
-                                    format!("{}", self.client_player.stats.abilities["3"])
-                                        .to_string(),
-                                )
-                                .await;
-                                self.special_attack_change = 0;
+                            if self.client_player.level > 2 {
+                                if self.special_attack_change > self.special_attack_time {
+                                    attack(
+                                        client.clone(),
+                                        id,
+                                        self.client_player.clone(),
+                                        self.target.clone(),
+                                        "special".to_string(),
+                                        format!("{}", self.client_player.stats.abilities["3"])
+                                            .to_string(),
+                                    )
+                                    .await;
+                                    self.special_attack_change = 0;
+                                }
                             }
                         }
                         '4' => {
-                            if self.special_attack_change > self.special_attack_time {
-                                attack(
-                                    client.clone(),
-                                    id,
-                                    self.client_player.clone(),
-                                    self.target.clone(),
-                                    "special".to_string(),
-                                    format!("{}", self.client_player.stats.abilities["4"])
-                                        .to_string(),
-                                )
-                                .await;
-                                self.special_attack_change = 0;
+                            if self.client_player.level > 3 {
+                                if self.special_attack_change > self.special_attack_time {
+                                    attack(
+                                        client.clone(),
+                                        id,
+                                        self.client_player.clone(),
+                                        self.target.clone(),
+                                        "special".to_string(),
+                                        format!("{}", self.client_player.stats.abilities["4"])
+                                            .to_string(),
+                                    )
+                                    .await;
+                                    self.special_attack_change = 0;
+                                }
                             }
                         }
                         '5' => {
-                            if self.special_attack_change > self.special_attack_time {
-                                attack(
-                                    client.clone(),
-                                    id,
-                                    self.client_player.clone(),
-                                    self.target.clone(),
-                                    "special".to_string(),
-                                    format!("{}", self.client_player.stats.abilities["5"])
-                                        .to_string(),
-                                )
-                                .await;
-                                self.special_attack_change = 0;
+                            if self.client_player.level > 4 {
+                                if self.special_attack_change > self.special_attack_time {
+                                    attack(
+                                        client.clone(),
+                                        id,
+                                        self.client_player.clone(),
+                                        self.target.clone(),
+                                        "special".to_string(),
+                                        format!("{}", self.client_player.stats.abilities["5"])
+                                            .to_string(),
+                                    )
+                                    .await;
+                                    self.special_attack_change = 0;
+                                }
                             }
                         }
                         _ => {}

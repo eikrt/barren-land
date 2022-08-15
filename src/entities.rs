@@ -310,15 +310,45 @@ impl Entity {
             if self.entity_type == "coyote" {
                 return;
             }
-            let mut rng = rand::thread_rng();
-            for (_k, u) in self.units.iter_mut() {
-                let dmg = rng.gen_range(0..10);
-                u.hp -= dmg;
+        }
+        let mut min_dmg = 0;
+        let mut max_dmg = 10;
+        match damage_type.as_str() {
+            "Shout" => {
+                min_dmg = 5;
+                max_dmg = 10;
             }
-            for (k, u) in self.units.clone().iter_mut() {
-                if u.hp < 0 {
-                    self.units.remove(&k);
-                }
+            "Roll Attack" => {
+                min_dmg = 10;
+                max_dmg = 15;
+
+            }
+            "Charge" => {
+                min_dmg = 15;
+                max_dmg = 20;
+
+            }
+            "Earth Spike" => {
+                min_dmg = 20;
+                max_dmg = 25;
+
+            }
+            "Earthquake" => {
+                min_dmg = 25;
+                max_dmg = 30;
+
+            }
+            _ => {}
+        }
+        
+        let mut rng = rand::thread_rng();
+        for (_k, u) in self.units.iter_mut() {
+            let dmg = rng.gen_range(min_dmg..max_dmg);
+            u.hp -= dmg;
+        }
+        for (k, u) in self.units.clone().iter_mut() {
+            if u.hp < 0 {
+                self.units.remove(&k);
             }
         }
     }

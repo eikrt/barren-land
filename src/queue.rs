@@ -184,11 +184,6 @@ pub fn execute_action(action: PostData) {
                 resources: HashMap::from([("wood".to_string(), 0), ("food".to_string(), 10)]),
                 standing_tile: Tile::default(),
             };
-            *entity.stats.abilities.get_mut("1").unwrap() = "LEVEL 2".to_string();
-            *entity.stats.abilities.get_mut("2").unwrap() = "LEVEL 3".to_string();
-            *entity.stats.abilities.get_mut("3").unwrap() = "LEVEL 4".to_string();
-            *entity.stats.abilities.get_mut("4").unwrap() = "LEVEL 5".to_string();
-            *entity.stats.abilities.get_mut("5").unwrap() = "LEVEL 6".to_string();
             update_entity_list(id, entity.clone());
             action_entities.entities.insert(id, entity);
         }
@@ -285,6 +280,10 @@ pub fn execute_action(action: PostData) {
                     e.experience += 10;
                 } 
             }
+            if e.experience > 100 {
+                e.experience = 0;
+                e.level += 1;
+            }
         }
         "attack" => {
             if !action_entities.entities.contains_key(&id) {
@@ -308,9 +307,20 @@ pub fn execute_action(action: PostData) {
                     }
                     "special" => {
                         match action.params["ability"].as_str() {
-                            "" => {
-                                //let dmg = rng.gen_range(5..20);
-                                //target_entity.hp -= dmg;
+                            "Shout" => {
+                                target_entity.damage(action.params["ability"].clone());
+                            }
+                            "Roll Attack" => {
+                                target_entity.damage(action.params["ability"].clone());
+                            }
+                            "Charge" => {
+                                target_entity.damage(action.params["ability"].clone());
+                            }
+                            "Earth Spike" => {
+                                target_entity.damage(action.params["ability"].clone());
+                            }
+                            "Earthquake" => {
+                                target_entity.damage(action.params["ability"].clone());
                             }
                             _ => {}
                         };

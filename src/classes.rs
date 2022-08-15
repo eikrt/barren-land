@@ -70,16 +70,16 @@ impl Ogre for CharacterStats {
     fn ogre() -> CharacterStats{
         CharacterStats{
             abilities: HashMap::from([
-                ("1".to_string(),"".to_string()),
-                ("2".to_string(),"".to_string()),
-                ("3".to_string(),"".to_string()),
-                ("4".to_string(),"".to_string()),
-                ("5".to_string(),"".to_string()),
+                ("1".to_string(),"Shout".to_string()),
+                ("2".to_string(),"Roll Attack".to_string()),
+                ("3".to_string(),"Charge".to_string()),
+                ("4".to_string(),"Earth Spike".to_string()),
+                ("5".to_string(),"Earthquake".to_string()),
             ]),
             stats: HashMap::from([
-                ("str".to_string(),5),
-                ("agi".to_string(),5),
-                ("int".to_string(),5),
+                ("str".to_string(),9),
+                ("agi".to_string(),2),
+                ("int".to_string(),3),
             ]),
             creature_type: "".to_string(),
         }
