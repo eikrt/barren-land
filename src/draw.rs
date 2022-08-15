@@ -291,6 +291,13 @@ impl Default for Curses {
                         color: 3,
                     },
                 ),
+                (
+                    "coyote".to_string(),
+                    UiTile {
+                        symbol: "c".to_string(),
+                        color: 3,
+                    },
+                ),
             ]),
         }
     }

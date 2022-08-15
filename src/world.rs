@@ -204,31 +204,90 @@ fn get_generated_chunk(
                 match biome.as_str() {
                     "dunes" => {
                         tile.tile_type = "dune_sand".to_string();
-                        let biome_entity = Entity::coyote(tile_x, tile_y, j as i32, i as i32, x, y, id, "coyote".to_string(), "coyote".to_string());
+                        let biome_entity = Entity::coyote(
+                            tile_x,
+                            tile_y,
+                            j as i32,
+                            i as i32,
+                            x,
+                            y,
+                            id,
+                            "coyote".to_string(),
+                            "coyote".to_string(),
+                        );
                         if rng.gen_range(0..32) == 1 {
                             entities_map.insert(id, biome_entity);
                         }
-                    },
+                    }
                     "ash_desert" => {
                         tile.tile_type = "ash".to_string();
                         if rng.gen_range(0..10) == 1 {
                             tile.tile_type = "ruins".to_string();
                         }
-                    },
+                    }
                     "salt_desert" => {
                         tile.tile_type = "salt".to_string();
                         if rng.gen_range(0..10) == 1 {
                             tile.tile_type = "shipwreck".to_string();
                         }
-                    },
-                    "ice_desert" => tile.tile_type = "ice".to_string(),
-                    "rock_desert" => tile.tile_type = "gravel".to_string(),
-                    "barren_land" => tile.tile_type = "sand".to_string(),
+                    }
+                    "ice_desert" => {
+                        tile.tile_type = "ice".to_string();
+                        let biome_entity = Entity::coyote(
+                            tile_x,
+                            tile_y,
+                            j as i32,
+                            i as i32,
+                            x,
+                            y,
+                            id,
+                            "coyote".to_string(),
+                            "coyote".to_string(),
+                        );
+                        if rng.gen_range(0..32) == 1 {
+                            entities_map.insert(id, biome_entity);
+                        }
+                    }
+                    "rock_desert" => {
+                        tile.tile_type = "gravel".to_string();
+                        let biome_entity = Entity::coyote(
+                            tile_x,
+                            tile_y,
+                            j as i32,
+                            i as i32,
+                            x,
+                            y,
+                            id,
+                            "coyote".to_string(),
+                            "coyote".to_string(),
+                        );
+                        if rng.gen_range(0..32) == 1 {
+                            entities_map.insert(id, biome_entity);
+                        }
+                    }
+                    "barren_land" => {
+                        tile.tile_type = "sand".to_string();
+                        let biome_entity = Entity::coyote(
+                            tile_x,
+                            tile_y,
+                            j as i32,
+                            i as i32,
+                            x,
+                            y,
+                            id,
+                            "coyote".to_string(),
+                            "coyote".to_string(),
+                        );
+                        if rng.gen_range(0..32) == 1 {
+                            entities_map.insert(id, biome_entity);
+                        }
+                    }
+
                     "oasis" => {
                         tile.tile_type = "grass".to_string();
                         tile.has_trees = true;
                         tile.gathered = false;
-                    },
+                    }
 
                     _ => tile.tile_type = "sand".to_string(),
                 };

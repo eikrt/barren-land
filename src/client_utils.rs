@@ -23,7 +23,7 @@ pub fn open_tiles(x: i32, y: i32) -> Tiles {
 }
 pub async fn load_tiles(client: reqwest::Client, x: i32, y: i32) -> Tiles {
     let resp = client
-        .get(format!("http://localhost:8080/tiles/{}/{}", x, y))
+        .get(format!("http://localhost:8081/tiles/{}/{}", x, y))
         .send()
         .await
         .unwrap();
@@ -34,7 +34,7 @@ pub async fn load_tiles(client: reqwest::Client, x: i32, y: i32) -> Tiles {
 }
 pub async fn load_world_map_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
     let resp = client
-        .get(format!("http://localhost:8080/world_map/{}/{}", x, y))
+        .get(format!("http://localhost:8081/world_map/{}/{}", x, y))
         .send()
         .await
         .unwrap();
@@ -45,7 +45,7 @@ pub async fn load_world_map_tile(client: reqwest::Client, x: i32, y: i32) -> Wor
 }
 pub async fn load_chunk_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMapTile {
     let resp = client
-        .get(format!("http://localhost:8080/world_map/{}/{}", x, y))
+        .get(format!("http://localhost:8081/world_map/{}/{}", x, y))
         .send()
         .await
         .unwrap();
@@ -56,7 +56,7 @@ pub async fn load_chunk_tile(client: reqwest::Client, x: i32, y: i32) -> WorldMa
 }
 pub async fn load_entities(client: reqwest::Client, x: i32, y: i32) -> Entities {
     let resp = client
-        .get(format!("http://localhost:8080/entities/{}/{}", x, y))
+        .get(format!("http://localhost:8081/entities/{}/{}", x, y))
         .send()
         .await;
     let resp = match resp {
@@ -72,7 +72,7 @@ pub async fn load_entities(client: reqwest::Client, x: i32, y: i32) -> Entities 
 }
 pub async fn load_player(client: reqwest::Client, _x: i32, _y: i32, id: u64) -> Entity {
     let resp = client
-        .get("http://localhost:8080/entities/{}/{}")
+        .get("http://localhost:8081/entities/{}/{}")
         .send()
         .await
         .unwrap();
@@ -82,7 +82,7 @@ pub async fn load_player(client: reqwest::Client, _x: i32, _y: i32, id: u64) -> 
 }
 pub async fn load_properties(client: reqwest::Client) -> WorldProperties {
     let resp = client
-        .get("http://localhost:8080/world_properties")
+        .get("http://localhost:8081/world_properties")
         .send()
         .await
         .unwrap();
@@ -99,7 +99,7 @@ pub async fn load_check_if_client_with_id(
 ) -> bool {
     let resp = client
         .get(format!(
-            "http://localhost:8080/client_exists/{}/{}/{}/{}",
+            "http://localhost:8081/client_exists/{}/{}/{}/{}",
             username, id, chunk_x, chunk_y
         ))
         .send()
@@ -115,7 +115,7 @@ pub async fn load_search_entity_clientid(
     _id: u64,
 ) -> ClientId {
     let resp = client
-        .get(format!("http://localhost:8080/search_entity/{}", username))
+        .get(format!("http://localhost:8081/search_entity/{}", username))
         .send()
         .await
         .unwrap();
@@ -127,7 +127,7 @@ pub async fn load_world_properties(
     client: reqwest::Client,
 ) -> Result<WorldProperties, Box<dyn Error>>{
     let resp = client
-        .get(format!("http://localhost:8080/world_properties"))
+        .get(format!("http://localhost:8081/world_properties"))
         .send()
         .await?;
     let body = resp.text().await.unwrap();
@@ -136,7 +136,7 @@ pub async fn load_world_properties(
 }
 pub async fn post_to_queue(client: reqwest::Client, action: PostData) {
     let _res = client
-        .post("http://localhost:8080/queue")
+        .post("http://localhost:8081/queue")
         .json(&action)
         .send()
         .await;

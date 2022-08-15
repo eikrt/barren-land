@@ -202,7 +202,7 @@ pub async fn main() -> std::io::Result<()> {
     let server_queue = action_queue.clone();
     thread::spawn(move || loop {
         process_entities(process_queue.read().unwrap().clone());
-        thread::sleep(time::Duration::from_millis(1000));
+        thread::sleep(time::Duration::from_millis(5000));
     });
     thread::spawn(move || loop {
         execute_queue(exe_queue.read().unwrap().clone());

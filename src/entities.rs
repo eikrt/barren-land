@@ -278,9 +278,13 @@ pub struct Entity {
     pub units: HashMap<u64, Unit>,
     pub standing_tile: Tile,
     pub alive: bool,
+    pub target_entity_id: u64,
 }
 impl Entity {
     pub fn move_dir(&mut self, dir: String) {
+        if !self.alive {
+            return;
+        }
         match dir.as_str() {
             "up" => {
                 self.relative_y -= 1;
@@ -302,14 +306,19 @@ impl Entity {
         }
     }
     pub fn damage(&mut self, damage_type: String) {
-        let mut rng = rand::thread_rng();
-        for (_k, u) in self.units.iter_mut() {
-            let dmg = rng.gen_range(0..10);
-            u.hp -= dmg;
-        }
-        for (k, u) in self.units.clone().iter_mut() {
-            if u.hp < 0 {
-                self.units.remove(&k);
+        if damage_type == "starve".to_string() || damage_type == "water".to_string() {
+            if self.entity_type == "coyote" {
+                return;
+            }
+            let mut rng = rand::thread_rng();
+            for (_k, u) in self.units.iter_mut() {
+                let dmg = rng.gen_range(0..10);
+                u.hp -= dmg;
+            }
+            for (k, u) in self.units.clone().iter_mut() {
+                if u.hp < 0 {
+                    self.units.remove(&k);
+                }
             }
         }
     }
@@ -356,6 +365,7 @@ impl Default for Entity {
             resources: HashMap::new(),
             standing_tile: Tile::default(),
             alive: true,
+            target_entity_id: 1,
         }
     }
 }
@@ -395,6 +405,7 @@ impl Scarab for Entity {
             chunk_y: chunk_y,
             entity_type: entity_type,
             id: id,
+            target_entity_id: 1,
             name: name,
             stats: CharacterStats::default(),
             units: Entity::generate_default_units(),
@@ -439,6 +450,7 @@ impl Coyote for Entity {
             chunk_x: chunk_x,
             chunk_y: chunk_y,
             entity_type: entity_type,
+            target_entity_id: 1,
             id: id,
             name: name,
             stats: CharacterStats::default(),

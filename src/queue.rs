@@ -77,12 +77,14 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
         }
         for cy in ly..ry {
             for cx in lx..rx {
-                let chunk_entities = open_entities_as_struct(cx, cy).unwrap();
-                for (_e_id, entity) in chunk_entities.entities.iter() {
+                let mut chunk_entities = open_entities_as_struct(cx, cy).unwrap();
+                let chunk_entities_clone = chunk_entities.clone();
+
+                for (_e_id, entity) in chunk_entities.entities.iter_mut() {
                     let moveset = MoveSet::default();
                     match entity.entity_type.as_str() {
-                        "scarab" => {
-                            let action = PostData {
+                        "coyote" => {
+                            let mut action = PostData {
                                 params: HashMap::from([
                                     ("command".to_string(), "move".to_string()),
                                     ("move_dir".to_string(), moveset.get_direction()),
@@ -91,6 +93,31 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
                                     ("chunk_y".to_string(), format!("{}", cy).to_string()),
                                 ]),
                             };
+                            for (_, other_entity) in chunk_entities_clone.entities.iter() {
+                                let dist = ((other_entity.y as f32 - entity.y as f32).powf(2.0)
+                                    + (other_entity.x as f32 - entity.x as f32).powf(2.0))
+                                .sqrt();
+                                if dist < 2.0 && entity.id != other_entity.id {
+                                    entity.target_entity_id = other_entity.id;
+                                    action = PostData {
+                                        params: HashMap::from([
+                                            ("command".to_string(), "attack".to_string()),
+                                            ("type".to_string(), "auto".to_string()),
+                                            ("id".to_string(), format!("{}", entity.id)),
+                                            ("target_id".to_string(), format!("{}", entity.target_entity_id)),
+                                            (
+                                                "chunk_x".to_string(),
+                                                format!("{}", entity.chunk_x).to_string(),
+                                            ),
+                                            (
+                                                "chunk_y".to_string(),
+                                                format!("{}", entity.chunk_y).to_string(),
+                                            ),
+                                        ]),
+                                    };
+                                    break;
+                                }
+                            }
                             state.queue.push(action);
                         }
                         _ => {}
@@ -121,6 +148,7 @@ pub fn execute_action(action: PostData) {
             Ok(o) => o,
             Err(e) => return,
         };
+    let mut action_entities_clone = action_entities.clone();
     let mut action_tiles = match open_tiles_as_struct(action_chunk_x as i32, action_chunk_y as i32)
     {
         Ok(o) => o,
@@ -130,6 +158,7 @@ pub fn execute_action(action: PostData) {
     let mut add_entity = false;
     let mut chunk_x_to_add = action_chunk_x;
     let mut chunk_y_to_add = action_chunk_y;
+    let mut remove_id = id;
     match action.params["command"].as_str() {
         "spawn" => {
             let action_x: i32 = action.params["x"].parse::<i32>().unwrap();
@@ -149,6 +178,7 @@ pub fn execute_action(action: PostData) {
                 entity_type: "ogre".to_string(),
                 name: action.params["name"].clone(),
                 id: id,
+                target_entity_id: 1,
                 stats: CharacterStats::ogre(),
                 units: units,
                 resources: HashMap::from([("wood".to_string(), 0), ("food".to_string(), 10)]),
@@ -248,6 +278,13 @@ pub fn execute_action(action: PostData) {
                     e.damage("water".to_string());
                 }
             }
+            for (e_id, a_e) in action_entities_clone.entities.iter() {
+                if !a_e.alive && a_e.x == e.x && a_e.y == e.y {
+                    remove_entity = true;
+                    remove_id = *e_id;
+                    e.experience += 10;
+                } 
+            }
         }
         "attack" => {
             if !action_entities.entities.contains_key(&id) {
@@ -334,7 +371,7 @@ pub fn execute_action(action: PostData) {
         write_entities_to_file(chunk_x_to_add, chunk_y_to_add, add_entities);
     }
     if remove_entity {
-        action_entities.entities.remove(&id);
+        action_entities.entities.remove(&remove_id);
     }
     write_entities_to_file(action_chunk_x, action_chunk_y, action_entities);
     write_tiles_to_file(action_chunk_x, action_chunk_y, action_tiles);
