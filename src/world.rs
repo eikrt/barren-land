@@ -149,6 +149,7 @@ fn get_generated_chunk(
     let biome_threshold_4 = 156.0;
     let biome_threshold_5 = 22.0;
     let biome_threshold_6 = 56.0;
+    let beach_buffer = 32.0;
     let mut biome_counts: HashMap<String, i32> = HashMap::new();
 
     biome_counts.insert("dunes".to_string(), 0);
@@ -203,10 +204,10 @@ fn get_generated_chunk(
                 match biome.as_str() {
                     "dunes" => {
                         tile.tile_type = "dune_sand".to_string();
-                        /*let biome_entity = Entity::scarab(tile_x, tile_y, j as i32, i as i32, x, y, id, "scarab".to_string(), "scarab".to_string());
+                        let biome_entity = Entity::coyote(tile_x, tile_y, j as i32, i as i32, x, y, id, "coyote".to_string(), "coyote".to_string());
                         if rng.gen_range(0..32) == 1 {
                             entities_map.insert(id, biome_entity);
-                        }*/
+                        }
                     },
                     "ash_desert" => {
                         tile.tile_type = "ash".to_string();
@@ -231,6 +232,10 @@ fn get_generated_chunk(
 
                     _ => tile.tile_type = "sand".to_string(),
                 };
+            }
+            if tile.h < sealevel + beach_buffer {
+                tile.tile_type = "dune_sand".to_string();
+                tile.gathered = true;
             }
             if tile.h < sealevel {
                 tile.tile_type = "water".to_string();

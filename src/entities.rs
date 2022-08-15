@@ -11,11 +11,24 @@ pub struct Unit {
     pub energy: i32,
     pub profession: String,
     pub stats: UnitStats,
-    pub items: HashMap<String, Item>
+    pub items: HashMap<String, Item>,
+}
+impl Default for Unit {
+    fn default() -> Unit {
+        Unit {
+            name: "default unit".to_string(),
+            hp: 1,
+            energy: 1,
+            profession: "none".to_string(),
+            stats: UnitStats::default(),
+            items: HashMap::new(),
+        }
+    }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Item {
     pub name: String,
+    pub quantity: u8,
 }
 pub trait Soldier {
     fn soldier() -> Unit;
@@ -31,11 +44,28 @@ impl Soldier for Unit {
             energy: 100,
             stats: UnitStats::default(),
             items: HashMap::from([
-                ("hide".to_string(),
-                Item {
-                    name: "hide".to_string(),
-                }
-                )]),
+                (
+                    "flax shirt".to_string(),
+                    Item {
+                        name: "flax shirt".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "flax trousers".to_string(),
+                    Item {
+                        name: "flax trousers".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "wooden spear".to_string(),
+                    Item {
+                        name: "wooden spear".to_string(),
+                        quantity: 1,
+                    },
+                ),
+            ]),
         }
     }
 }
@@ -52,12 +82,22 @@ impl Gatherer for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
-            items: HashMap::from([(
-                "hide".to_string(),
-                Item {
-                    name: "hide".to_string(),
-                }
-            )]),
+            items: HashMap::from([
+                (
+                    "flax shirt".to_string(),
+                    Item {
+                        name: "flax shirt".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "flax trousers".to_string(),
+                    Item {
+                        name: "flax trousers".to_string(),
+                        quantity: 1,
+                    },
+                ),
+            ]),
         }
     }
 }
@@ -74,12 +114,29 @@ impl Worker for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
-            items: HashMap::from([(
-                "hide".to_string(),
-                Item {
-                    name: "hide".to_string(),
-                }
-            )]),
+            items: HashMap::from([
+                (
+                    "flax shirt".to_string(),
+                    Item {
+                        name: "flax shirt".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "flax trousers".to_string(),
+                    Item {
+                        name: "flax trousers".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "shovel".to_string(),
+                    Item {
+                        name: "shovel".to_string(),
+                        quantity: 1,
+                    },
+                ),
+            ]),
         }
     }
 }
@@ -96,12 +153,36 @@ impl Crafter for Unit {
             hp: 100,
             energy: 100,
             stats: UnitStats::default(),
-            items: HashMap::from([(
-                "hide".to_string(),
-                Item {
-                    name: "hide".to_string(),
-                }
-            )]),
+            items: HashMap::from([
+                (
+                    "flax shirt".to_string(),
+                    Item {
+                        name: "flax shirt".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "flax trousers".to_string(),
+                    Item {
+                        name: "flax trousers".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "needle".to_string(),
+                    Item {
+                        name: "needle".to_string(),
+                        quantity: 1,
+                    },
+                ),
+                (
+                    "knife".to_string(),
+                    Item {
+                        name: "knife".to_string(),
+                        quantity: 1,
+                    },
+                ),
+            ]),
         }
     }
 }
@@ -109,7 +190,7 @@ pub trait Donkey {
     fn donkey() -> Unit;
 }
 impl Donkey for Unit {
-    fn donkey () -> Unit {
+    fn donkey() -> Unit {
         let mut rng = rand::thread_rng();
         let id: u64 = rng.gen::<u64>();
         Unit {
@@ -122,8 +203,26 @@ impl Donkey for Unit {
         }
     }
 }
+pub trait CoyoteUnit {
+    fn coyote() -> Unit;
+}
+impl CoyoteUnit for Unit {
+    fn coyote() -> Unit {
+        let mut rng = rand::thread_rng();
+        let id: u64 = rng.gen::<u64>();
+        Unit {
+            name: "coyote".to_string(),
+            profession: "coyote".to_string(),
+            hp: 25,
+            energy: 100,
+            stats: UnitStats::default(),
+            items: HashMap::new(),
+        }
+    }
+}
 pub trait GenerateDefault {
     fn generate_default_units() -> HashMap<u64, Unit>;
+    fn generate_units(unit_type: String) -> HashMap<u64, Unit>;
 }
 impl GenerateDefault for Entity {
     fn generate_default_units() -> HashMap<u64, Unit> {
@@ -148,6 +247,15 @@ impl GenerateDefault for Entity {
         for i in 0..4 {
             let id: u64 = rng.gen::<u64>();
             units.insert(id, Unit::donkey());
+        }
+        return units;
+    }
+    fn generate_units(unit_type: String) -> HashMap<u64, Unit> {
+        let mut units = HashMap::new();
+        let mut rng = rand::thread_rng();
+        for i in 0..12 {
+            let id: u64 = rng.gen::<u64>();
+            units.insert(id, Unit::coyote());
         }
         return units;
     }
@@ -197,6 +305,29 @@ impl Entity {
         let mut rng = rand::thread_rng();
         for (_k, u) in self.units.iter_mut() {
             let dmg = rng.gen_range(0..10);
+            u.hp -= dmg;
+        }
+        for (k, u) in self.units.clone().iter_mut() {
+            if u.hp < 0 {
+                self.units.remove(&k);
+            }
+        }
+    }
+    pub fn damage_by_entity(&mut self, damage_type: String, entity: Entity) {
+        let mut weapon_power = 0;
+        for u in entity.units.values() {
+            for i in u.items.values() {
+                if i.name == "wooden spear".to_string() {
+                    weapon_power += 1;
+                }
+            }
+            if u.name == "coyote" {
+                weapon_power += 1;
+            }
+        }
+        let mut rng = rand::thread_rng();
+        for (_k, u) in self.units.iter_mut() {
+            let dmg = rng.gen_range(weapon_power..(weapon_power + 5));
             u.hp -= dmg;
         }
         for (k, u) in self.units.clone().iter_mut() {
@@ -267,6 +398,51 @@ impl Scarab for Entity {
             name: name,
             stats: CharacterStats::default(),
             units: Entity::generate_default_units(),
+            resources: HashMap::new(),
+            standing_tile: Tile::default(),
+            alive: true,
+        }
+    }
+}
+pub trait Coyote {
+    fn coyote(
+        x: i32,
+        y: i32,
+        relative_x: i32,
+        relative_y: i32,
+        chunk_x: i32,
+        chunk_y: i32,
+        id: u64,
+        entity_type: String,
+        name: String,
+    ) -> Entity;
+}
+impl Coyote for Entity {
+    fn coyote(
+        x: i32,
+        y: i32,
+        relative_x: i32,
+        relative_y: i32,
+        chunk_x: i32,
+        chunk_y: i32,
+        id: u64,
+        entity_type: String,
+        name: String,
+    ) -> Entity {
+        Entity {
+            x: x,
+            y: y,
+            experience: 0,
+            level: 1,
+            relative_x: relative_x,
+            relative_y: relative_y,
+            chunk_x: chunk_x,
+            chunk_y: chunk_y,
+            entity_type: entity_type,
+            id: id,
+            name: name,
+            stats: CharacterStats::default(),
+            units: Entity::generate_units("coyote".to_string()),
             resources: HashMap::new(),
             standing_tile: Tile::default(),
             alive: true,

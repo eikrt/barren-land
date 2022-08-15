@@ -46,6 +46,8 @@ pub struct Client {
     pub render_y: i32,
     pub player_x: i32,
     pub player_y: i32,
+    pub menu_select: i32,
+    pub selected_unit: Unit,
 }
 impl Default for Client {
     fn default() -> Client {
@@ -61,7 +63,7 @@ impl Default for Client {
             attacking: false,
             endless_move_mode: false,
             input_change: 0,
-            render_x: 2,
+            render_x: 4,
             render_y: 2,
             target: Entity::default(),
             has_target: false,
@@ -78,6 +80,8 @@ impl Default for Client {
             special_attack_change: 0,
             player_x: 1,
             player_y: 1,
+            menu_select: 1,
+            selected_unit: Unit::default(),
         }
     }
 }
@@ -150,7 +154,7 @@ impl Client {
             self.client_player.chunk_y = server_clientid.chunk_y;
         }
         self.camera.x =
-            self.client_player.chunk_x * self.current_world_properties.chunk_size as i32;
+            self.client_player.chunk_x * self.current_world_properties.chunk_size as i32 - 40;
         self.camera.y =
             self.client_player.chunk_y * self.current_world_properties.chunk_size as i32;
         let mut graphics_frontend = self.ui.get_type("curses".to_string());
@@ -284,45 +288,59 @@ impl Client {
                         graphics_frontend.draw_cursor(rel_y, rel_x);
                     }
                     // draw hud
+                    let color = "hud_text".to_string();
                     graphics_frontend.draw_hud();
-                    graphics_frontend.draw_str_hud(1, 1, username.clone());
-                    graphics_frontend.draw_str_hud(1, 16, format!("ABILITIES: ").to_string());
+                    graphics_frontend.draw_str_hud(color.clone(), 1, 1, username.clone());
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
+                        1,
+                        16,
+                        format!("ABILITIES: ").to_string(),
+                    );
+                    graphics_frontend.draw_str_hud(
+                        color.clone(),
                         2,
                         16,
                         format!("1. {}", self.client_player.stats.abilities["1"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         3,
                         16,
                         format!("2. {}", self.client_player.stats.abilities["2"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         4,
                         16,
                         format!("3. {}", self.client_player.stats.abilities["3"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         5,
                         16,
                         format!("4. {}", self.client_player.stats.abilities["4"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         6,
                         16,
                         format!("5. {}", self.client_player.stats.abilities["5"]).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         6,
                         1,
                         format!("UNITS: {}", self.client_player.units.values().len()).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         4,
                         1,
                         format!("LEVEL: {}", self.client_player.level).to_string(),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         5,
                         1,
                         format!("EXPERIENCE: {}", self.client_player.experience).to_string(),
@@ -330,40 +348,196 @@ impl Client {
                     // draw target
 
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         1,
                         60,
                         format!("TILE: {}", self.standing_tile.tile_type),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         2,
                         60,
                         format!("ENTITY: {}", self.standing_entity.entity_type),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         1,
                         32,
                         format!("TARGET TYPE: {}", self.target.entity_type),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         2,
                         32,
                         format!("TARGET NAME : {}", self.target.name),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         3,
                         32,
                         format!("TARGET UNITS: {}", self.target.units.values().len()),
                     );
                     graphics_frontend.draw_str_hud(
+                        color.clone(),
                         4,
                         32,
                         format!("TARGET LEVEL: {}", self.target.level),
                     );
                     if self.attacking {
-                        graphics_frontend.draw_str_hud(0, 1, format!("/"));
+                        graphics_frontend.draw_str_hud(color.clone(), 0, 1, format!("/"));
                     }
                     if !self.client_player.alive {
                         self.view = "gameover".to_string();
+                    }
+                    let mut do_not_move = false;
+                    match self.move_dir {
+                        'w' => {
+                            if self.input_change > INPUT_DELAY {
+                                self.input_change = 0;
+                            } else {
+                                do_not_move = true;
+                            }
+
+                            if self.client_player.chunk_y == 0 && self.client_player.relative_y == 0
+                            {
+                                do_not_move = true;
+                            }
+                            if !do_not_move {
+                                move_player(
+                                    client.clone(),
+                                    id,
+                                    "up".to_string(),
+                                    self.client_player.clone(),
+                                )
+                                .await;
+                                self.client_player.y -= 1;
+                                self.client_player.relative_y -= 1;
+
+                                if self.player_y < EDGE_Y as i32 {
+                                    self.camera.y -= 1;
+                                }
+                            }
+                        }
+                        'a' => {
+                            if self.input_change > INPUT_DELAY {
+                                self.input_change = 0;
+                            } else {
+                                do_not_move = true;
+                            }
+                            if self.client_player.chunk_x == 0 && self.client_player.relative_x == 0
+                            {
+                                do_not_move = true;
+                            }
+                            if !do_not_move {
+                                move_player(
+                                    client.clone(),
+                                    id,
+                                    "left".to_string(),
+                                    self.client_player.clone(),
+                                )
+                                .await;
+                                self.client_player.x -= 1;
+                                self.client_player.relative_x -= 1;
+
+                                if self.player_x < EDGE_X as i32 {
+                                    self.camera.x -= 1;
+                                }
+                            }
+                        }
+                        's' => {
+                            if self.input_change > INPUT_DELAY {
+                                self.input_change = 0;
+                            } else {
+                                do_not_move = true;
+                            }
+                            if self.client_player.chunk_y
+                                == self.current_world_properties.world_height as i32 - 1
+                                && self.client_player.relative_y
+                                    == self.current_world_properties.chunk_size as i32 - 1
+                            {
+                                do_not_move = true;
+                            }
+                            if !do_not_move {
+                                move_player(
+                                    client.clone(),
+                                    id,
+                                    "down".to_string(),
+                                    self.client_player.clone(),
+                                )
+                                .await;
+                                self.client_player.y += 1;
+                                self.client_player.relative_y += 1;
+
+                                if self.player_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
+                                    self.camera.y += 1;
+                                }
+                            }
+                        }
+                        'd' => {
+                            if self.input_change > INPUT_DELAY {
+                                self.input_change = 0;
+                            } else {
+                                do_not_move = true;
+                            }
+
+                            if self.client_player.chunk_x
+                                == self.current_world_properties.world_width as i32 - 1
+                                && self.client_player.relative_x
+                                    == self.current_world_properties.chunk_size as i32 - 1
+                            {
+                                do_not_move = true;
+                            }
+                            if !do_not_move {
+                                move_player(
+                                    client.clone(),
+                                    id,
+                                    "right".to_string(),
+                                    self.client_player.clone(),
+                                )
+                                .await;
+                                self.client_player.x += 1;
+                                self.client_player.relative_x += 1;
+
+                                if self.player_x > (SCREEN_WIDTH - EDGE_X) as i32 {
+                                    self.camera.x += 1;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    match self.move_dir {
+                        'd' => {
+                            if self.client_player.relative_x
+                                == self.current_world_properties.chunk_size as i32
+                            {
+                                self.client_player.chunk_x += 1;
+                                refresh_tiles = true;
+                            }
+                        }
+                        's' => {
+                            if self.client_player.relative_y
+                                == self.current_world_properties.chunk_size as i32
+                            {
+                                self.client_player.chunk_y += 1;
+                                refresh_tiles = true;
+                            }
+                        }
+                        'a' => {
+                            if self.client_player.relative_x == -1 {
+                                self.client_player.chunk_x -= 1;
+                                refresh_tiles = true;
+                            }
+                        }
+                        'w' => {
+                            if self.client_player.relative_y == -1 {
+                                self.client_player.chunk_y -= 1;
+                                refresh_tiles = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                    if !self.endless_move_mode {
+                        self.move_dir = '?';
                     }
                 }
                 "map" => {
@@ -374,42 +548,112 @@ impl Client {
                     }
                 }
                 "unit" => {
-                    graphics_frontend.draw_str(0, 0, format!("UNIT LIST"));
+                    let color = "hud_text".to_string();
+                    graphics_frontend.draw_str(color.clone(), 0, 0, format!("UNIT LIST"));
                     let column_margin = 14;
                     let mut text_y = 1;
                     for (_id, unit) in self.client_player.units.iter() {
-                        graphics_frontend.draw_str(2, 0, (format!("NAME")));
-                        graphics_frontend.draw_str(2 + text_y, 0, format!("{}", unit.name));
-                        graphics_frontend.draw_str(2, column_margin, format!("OCCUPATION"));
+                        let mut color = "hud_text".to_string();
+                        if self.menu_select == text_y {
+                            color = "hud_select".to_string();
+                            self.selected_unit = unit.clone();
+                        }
+                        graphics_frontend.draw_str(color.clone(), 2, 0, (format!("NAME")));
                         graphics_frontend.draw_str(
+                            color.clone(),
+                            2 + text_y,
+                            0,
+                            format!("{}", unit.name),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
+                            2,
+                            column_margin,
+                            format!("OCCUPATION"),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
                             2 + text_y,
                             column_margin,
                             format!("{}", unit.profession),
                         );
-                        graphics_frontend.draw_str(2, column_margin * 2, format!("HP"));
                         graphics_frontend.draw_str(
+                            color.clone(),
+                            2,
+                            column_margin * 2,
+                            format!("HP"),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
                             2 + text_y,
                             column_margin * 2,
                             format!("{}", unit.hp),
                         );
-                        graphics_frontend.draw_str(2, column_margin * 3, format!("ENERGY"));
                         graphics_frontend.draw_str(
+                            color.clone(),
+                            2,
+                            column_margin * 3,
+                            format!("ENERGY"),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
                             2 + text_y,
                             column_margin * 3,
                             format!("{}", unit.energy),
                         );
                         text_y += 1;
                     }
+                    if self.menu_select > self.client_player.units.values().len() as i32
+                    {
+                        self.menu_select = 1;
+                    }
+                    if self.menu_select < 1 {
+                        self.menu_select = self.client_player.units.values().len() as i32;
+                    }
+                    self.move_dir = '?';
+                }
+                "single_unit" => {
+                    let color = "hud_text".to_string();
+
+                    graphics_frontend.draw_str(
+                        color.clone(),
+                        0,
+                        0,
+                        format!("{}", self.selected_unit.name.clone()),
+                    );
+                    graphics_frontend.draw_str(color.clone(), 2, 0, "ITEM".to_string());
+                    graphics_frontend.draw_str(color.clone(), 2, 12, "QUANTITY".to_string());
+                    for (i, item) in self.selected_unit.items.values().enumerate() {
+                        graphics_frontend.draw_str(
+                            color.clone(),
+                            4 + i as i32,
+                            0,
+                            format!("{}", item.name),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
+                            4 + i as i32,
+                            12,
+                            format!("{}", item.quantity),
+                        );
+                    }
                 }
                 "resources" => {
-                    graphics_frontend.draw_str(0, 0, format!("STATUS"));
+                    let color = "hud_text".to_string();
+                    graphics_frontend.draw_str(color.clone(), 0, 0, format!("STATUS"));
                     let column_margin = 14;
                     let mut text_y = 1;
-                    graphics_frontend.draw_str(2, 0, format!("RESOURCE"));
-                    graphics_frontend.draw_str(2, column_margin, format!("AMOUNT"));
+                    graphics_frontend.draw_str(color.clone(), 2, 0, format!("RESOURCE"));
+                    graphics_frontend.draw_str(color.clone(), 2, column_margin, format!("AMOUNT"));
                     for (key, resource) in self.client_player.resources.iter() {
-                        graphics_frontend.draw_str(2 + text_y, 0, format!("{}", key));
                         graphics_frontend.draw_str(
+                            color.clone(),
+                            2 + text_y,
+                            0,
+                            format!("{}", key),
+                        );
+                        graphics_frontend.draw_str(
+                            color.clone(),
                             2 + text_y,
                             column_margin,
                             format!("{}", resource),
@@ -418,7 +662,9 @@ impl Client {
                     }
                 }
                 "gameover" => {
+                    let color = "hud_text".to_string();
                     graphics_frontend.draw_str(
+                        color.clone(),
                         0,
                         0,
                         format!("The Barren Lands have consumed your tribe..."),
@@ -431,17 +677,43 @@ impl Client {
                 self.target = targetable_entities[&self.target.id].clone();
             }
             match graphics_frontend.get_window().getch() {
+                Some(Input::KeyEnter) => match self.view.as_str() {
+                    "unit" => {
+                        self.view = "single_unit".to_string();
+                    }
+                    _ => {}
+                },
+                Some(Input::KeyBackspace) => match self.view.as_str() {
+                    "unit" => {
+                        self.view = "game".to_string();
+                    }
+                    "single_unit" => {
+                        self.view = "unit".to_string();
+                    }
+                    "map" => {
+                        self.view = "game".to_string();
+                    }
+                    "resources" => {
+                        self.view = "game".to_string();
+                    }
+                    "gameover" => {
+                        std::process::exit(0);
+                    }
+                    _ => {}
+                },
                 Some(Input::Character(c)) => {
                     //    window.addch(c);
                     match c {
                         'w' => {
                             self.move_dir = 'w';
+                            self.menu_select -= 1;
                         }
                         'a' => {
                             self.move_dir = 'a';
                         }
                         's' => {
                             self.move_dir = 's';
+                            self.menu_select += 1;
                         }
                         'd' => {
                             self.move_dir = 'd';
@@ -450,36 +722,70 @@ impl Client {
                         'l' => {
                             self.endless_move_mode = !self.endless_move_mode;
                         }
-                        'm' => match self.view.as_str() {
-                            "game" => {
-                                self.view = "map".to_string();
+                        '\n' => match self.view.as_str() {
+                            "unit" => {
+                                self.view = "single_unit".to_string();
+                            }
+                            _ => {}
+                        },
+                        'q' => match self.view.as_str() {
+                            "unit" => {
+                                self.view = "game".to_string();
+                            }
+                            "single_unit" => {
+                                self.view = "unit".to_string();
                             }
                             "map" => {
                                 self.view = "game".to_string();
                             }
-
-                            _ => {}
-                        },
-                        'u' => match self.view.as_str() {
-                            "unit" => {
-                                self.view = "game".to_string();
-                            }
-                            "game" => {
-                                self.view = "unit".to_string();
-                            }
-
-                            _ => {}
-                        },
-                        'r' => match self.view.as_str() {
                             "resources" => {
                                 self.view = "game".to_string();
                             }
-                            "game" => {
-                                self.view = "resources".to_string();
+                            "gameover" => {
+                                std::process::exit(0);
                             }
-
                             _ => {}
                         },
+                        'm' => {
+                            match self.view.as_str() {
+                                "game" => {
+                                    self.view = "map".to_string();
+                                }
+                                "map" => {
+                                    self.view = "game".to_string();
+                                }
+
+                                _ => {}
+                            }
+                            self.menu_select = 1;
+                        }
+                        'u' => {
+                            match self.view.as_str() {
+                                "unit" => {
+                                    self.view = "game".to_string();
+                                }
+                                "game" => {
+                                    self.view = "unit".to_string();
+                                }
+
+                                _ => {}
+                            }
+                            self.menu_select = 1;
+                        }
+                        'r' => {
+                            match self.view.as_str() {
+                                "resources" => {
+                                    self.view = "game".to_string();
+                                }
+                                "game" => {
+                                    self.view = "resources".to_string();
+                                }
+
+                                _ => {}
+                            }
+
+                            self.menu_select = 1;
+                        }
                         '\t' => {
                             self.target_index += 1;
                             if self.target_index > targetable_entities.values().len() - 1 {
@@ -608,154 +914,6 @@ impl Client {
                 Some(Input::KeyDC) => self.running = false,
                 Some(_input) => {}
                 None => (),
-            }
-            let mut do_not_move = false;
-            match self.move_dir {
-                'w' => {
-                    if self.input_change > INPUT_DELAY {
-                        self.input_change = 0;
-                    } else {
-                        do_not_move = true;
-                    }
-
-                    if self.client_player.chunk_y == 0 && self.client_player.relative_y == 0 {
-                        do_not_move = true;
-                    }
-                    if !do_not_move {
-                        move_player(
-                            client.clone(),
-                            id,
-                            "up".to_string(),
-                            self.client_player.clone(),
-                        )
-                        .await;
-                        self.client_player.y -= 1;
-                        self.client_player.relative_y -= 1;
-
-                        if self.player_y < EDGE_Y as i32 {
-                            self.camera.y -= 1;
-                        }
-                    }
-                }
-                'a' => {
-                    if self.input_change > INPUT_DELAY {
-                        self.input_change = 0;
-                    } else {
-                        do_not_move = true;
-                    }
-                    if self.client_player.chunk_x == 0 && self.client_player.relative_x == 0 {
-                        do_not_move = true;
-                    }
-                    if !do_not_move {
-                        move_player(
-                            client.clone(),
-                            id,
-                            "left".to_string(),
-                            self.client_player.clone(),
-                        )
-                        .await;
-                        self.client_player.x -= 1;
-                        self.client_player.relative_x -= 1;
-
-                        if self.player_x < EDGE_X as i32 {
-                            self.camera.x -= 1;
-                        }
-                    }
-                }
-                's' => {
-                    if self.input_change > INPUT_DELAY {
-                        self.input_change = 0;
-                    } else {
-                        do_not_move = true;
-                    }
-                    if self.client_player.chunk_y
-                        == self.current_world_properties.world_height as i32 - 1
-                        && self.client_player.relative_y
-                            == self.current_world_properties.chunk_size as i32 - 1
-                    {
-                        do_not_move = true;
-                    }
-                    if !do_not_move {
-                        move_player(
-                            client.clone(),
-                            id,
-                            "down".to_string(),
-                            self.client_player.clone(),
-                        )
-                        .await;
-                        self.client_player.y += 1;
-                        self.client_player.relative_y += 1;
-
-                        if self.player_y > (SCREEN_HEIGHT - EDGE_Y) as i32 {
-                            self.camera.y += 1;
-                        }
-                    }
-                }
-                'd' => {
-                    if self.input_change > INPUT_DELAY {
-                        self.input_change = 0;
-                    } else {
-                        do_not_move = true;
-                    }
-
-                    if self.client_player.chunk_x
-                        == self.current_world_properties.world_width as i32 - 1
-                        && self.client_player.relative_x
-                            == self.current_world_properties.chunk_size as i32 - 1
-                    {
-                        do_not_move = true;
-                    }
-                    if !do_not_move {
-                        move_player(
-                            client.clone(),
-                            id,
-                            "right".to_string(),
-                            self.client_player.clone(),
-                        )
-                        .await;
-                        self.client_player.x += 1;
-                        self.client_player.relative_x += 1;
-
-                        if self.player_x > (SCREEN_WIDTH - EDGE_X) as i32 {
-                            self.camera.x += 1;
-                        }
-                    }
-                }
-                _ => {}
-            }
-            match self.move_dir {
-                'd' => {
-                    if self.client_player.relative_x
-                        == self.current_world_properties.chunk_size as i32
-                    {
-                        self.client_player.chunk_x += 1;
-                        refresh_tiles = true;
-                    }
-                }
-                's' => {
-                    if self.client_player.relative_y
-                        == self.current_world_properties.chunk_size as i32
-                    {
-                        self.client_player.chunk_y += 1;
-                        refresh_tiles = true;
-                    }
-                }
-                'a' => {
-                    if self.client_player.relative_x == -1 {
-                        self.client_player.chunk_x -= 1;
-                        refresh_tiles = true;
-                    }
-                }
-                'w' => {
-                    if self.client_player.relative_y == -1 {
-                        self.client_player.chunk_y -= 1;
-                        refresh_tiles = true;
-                    }
-                }
-                _ => {}
-            }
-            if !self.endless_move_mode {
-                self.move_dir = '?';
             }
             if refresh_tiles {
                 self.current_chunk_tiles = Vec::new();

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub const SCREEN_WIDTH: u8 = 80;
 pub const SCREEN_HEIGHT: u8 = 24;
 pub const EDGE_X: u8 = 16;
-pub const EDGE_Y: u8 = 8;
+pub const EDGE_Y: u8 = 12;
 pub const HUD_X: u8 = 0;
 pub const HUD_Y: u8 = 16;
 pub const HUD_WIDTH: u8 = 80;
@@ -53,8 +53,8 @@ pub trait UI {
     fn init(&mut self);
     fn draw_tile(&self, tile: Tile, rel_y: i32, rel_x: i32);
     fn draw_entity(&self, entity: Entity, rel_y: i32, rel_x: i32);
-    fn draw_str(&self, y: i32, x: i32, content: String);
-    fn draw_str_hud(&self, y: i32, x: i32, content: String);
+    fn draw_str(&self, color: String,y: i32, x: i32, content: String);
+    fn draw_str_hud(&self, color: String, y: i32, x: i32, content: String);
     fn draw_cursor(&self, rel_y: i32, rel_x: i32);
     fn draw_world_tile(&self, tile: WorldMapTile);
     fn draw_hud(&self);
@@ -145,6 +145,13 @@ impl Default for Curses {
                     UiTile {
                         symbol: " ".to_string(),
                         color: 3,
+                    },
+                ),
+                (
+                    "hud_select".to_string(),
+                    UiTile {
+                        symbol: " ".to_string(),
+                        color: 7,
                     },
                 ),
             ]),
@@ -372,14 +379,14 @@ impl UI for Curses {
         attributes.set_blink(false);
         self.window.attrset(attributes);
     }
-    fn draw_str(&self, y: i32, x: i32, content: String) {
-        let attributes = ColorPair(self.ui_hud["hud_text"].color);
+    fn draw_str(&self, color: String, y: i32, x: i32, content: String) {
+        let attributes = ColorPair(self.ui_hud[&color].color);
         self.window.attron(attributes);
         self.window.mv(MARGIN_Y + y, MARGIN_X + x);
         self.window.addstr(&content);
     }
-    fn draw_str_hud(&self, y: i32, x: i32, content: String) {
-        let attributes = ColorPair(self.ui_hud["hud_text"].color);
+    fn draw_str_hud(&self, color: String, y: i32, x: i32, content: String) {
+        let attributes = ColorPair(self.ui_hud[&color].color);
         self.window.attron(attributes);
         self.window
             .mv(MARGIN_Y + HUD_Y as i32 + y, MARGIN_X + HUD_X as i32 + x);

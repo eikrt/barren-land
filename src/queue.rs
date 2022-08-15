@@ -267,7 +267,7 @@ pub fn execute_action(action: PostData) {
                 }
                 match action.params["type"].as_str() {
                     "auto" => {
-                        target_entity.damage("auto".to_string());
+                        target_entity.damage_by_entity("auto".to_string(), target_entity.clone());
                     }
                     "special" => {
                         match action.params["ability"].as_str() {
