@@ -1,7 +1,8 @@
-use crate::queue::*;
-use crate::world::*;
 use crate::entities::*;
+use crate::queue::*;
 use crate::tiles::*;
+use crate::world::*;
+use actix_cors::Cors;
 use actix_web::*;
 use bincode;
 use serde::{Deserialize, Serialize};
@@ -156,7 +157,9 @@ pub fn check_if_client_exists(username: String, _id: u64) -> bool {
 #[get("/tiles/{x}/{y}")]
 async fn tiles(data: web::Path<ChunkGetData>) -> impl Responder {
     let contents = open_tiles(data.x, data.y);
-    HttpResponse::Ok().body(contents)
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(contents)
 }
 #[get("/entities/{x}/{y}")]
 async fn entities(data: web::Path<ChunkGetData>) -> impl Responder {
@@ -208,9 +211,16 @@ pub async fn main() -> std::io::Result<()> {
         execute_queue(exe_queue.read().unwrap().clone());
     });
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("localhost")
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .max_age(3600);
         App::new()
             .app_data(server_queue.read().unwrap().clone())
             .wrap(middleware::Compress::default())
+            .wrap(Cors::permissive())
             .service(world_properties)
             .service(client_exists)
             .service(tiles)
