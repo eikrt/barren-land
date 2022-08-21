@@ -11,7 +11,12 @@ const tileColors = {
     barren_land: 0xe6e6a5,
     dune_sand: 0xe6e6a5,
     salt: 0xffffff,
+    ice: 0xfffff,
     ash: 0x525245,
+    gravel: 0x9ca6a2,
+    ruins: 0x9ca6a2,
+    water: 0x3c82e6,
+    shipwreck: 0x9ca6a2,
     unknown: 0x000000,
 }
 let worldProperties = null
@@ -35,11 +40,12 @@ const camera = new THREE.PerspectiveCamera(
   250
 
 )
+camera.up = new THREE.Vector3(0,0,1);
 camera.rotation.y = 0// 3.14/4;
-camera.rotation.x = 0
-camera.position.x = 0
-camera.position.y = 0.56
-camera.position.z = 1.1
+camera.rotation.x = 3.14/4
+camera.position.x = 1.0
+camera.position.y = 1.0
+camera.position.z = 4.0
 
 const tick = () => {
   if (renderer) {
@@ -73,19 +79,10 @@ const onKeyDown = function (event) {
       break
   }
 }
-function addTile (tile) {
-  const geometry = new THREE.BufferGeometry()
-  const vertices = new Float32Array([
-    tile.x, tile.y, 0.0,
-	 tile.x + 1.0, tile.y + 0.0, 0.0,
-	 tile.x + 1.0, tile.y + 1.0, 0.0,
+function addTile (tile, surroundingTiles) {
+  const geometry = new THREE.BoxGeometry(1,1,tile.h/200)
 
-	 tile.x + 1.0, tile.y + 1.0, 0.0,
-    tile.x + 0.0, tile.y + 1.0, 0.0,
-    tile.x + 0.0, tile.y + 0.0, 0.0
-  ])
 
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
   let color = 0xff0000 
     if (tile.tile_type in tileColors) {
         color = tileColors[tile.tile_type]
@@ -93,9 +90,9 @@ function addTile (tile) {
     else {
         color = tileColors["unknown"]
     }
-    console.log(tile.tile_type)
   const material = new THREE.MeshBasicMaterial({ color: color})
   const mesh = new THREE.Mesh(geometry, material)
+  mesh.position.set(tile.x,tile.y,0);
   scene.add(mesh)
 }
 async function initScene () {
@@ -104,7 +101,12 @@ async function initScene () {
   for (let i = 0; i < worldProperties.chunk_size; i++) {
     for (let j = 0; j < worldProperties.chunk_size; j++) {
         const tile = chunkTiles[j][i]
-        addTile(tile)
+        const surroundingTiles = []
+        surroundingTiles[0] = chunkTiles?.[j-1]?.[i-1] ?? {x:0,y:0,height:0}
+        surroundingTiles[1] = chunkTiles?.[j+1]?.[i-1] ?? {x:0,y:0,height:0}
+        surroundingTiles[2] = chunkTiles?.[j-1]?.[i+1] ?? {x:0,y:0,height:0}
+        surroundingTiles[3] = chunkTiles?.[j+1]?.[i+1] ?? {x:0,y:0,height:0}
+        addTile(tile, surroundingTiles)
     }
   }
 }
