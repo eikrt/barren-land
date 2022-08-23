@@ -2,9 +2,6 @@ import * as THREE from 'three'
 import { PointerLockControls } from './PointerLockControls'
 import axios from 'axios'
 const scene = new THREE.Scene()
-const material = new THREE.MeshBasicMaterial({
-  color: 0xffffff
-})
 const tileColors = {
     grass: 0x77d182,
     sand: 0xe6e6a5,
@@ -19,8 +16,51 @@ const tileColors = {
     shipwreck: 0x9ca6a2,
     unknown: 0x000000,
 }
+
+const loader = new THREE.TextureLoader();
 let worldProperties = null
 const tiles = null
+let renderer = null
+let controls = null
+
+const tileTextures = {
+    barren_land: loader.load( 
+	'res/fine_sand.png'
+ ),
+    dune_sand: loader.load( 
+	'res/fine_sand.png'
+),
+    sand: loader.load( 
+	'res/fine_sand.png'
+ ),
+    ice: loader.load(
+	'res/ice.png'
+),
+    ash: loader.load(
+	'res/ash.png'
+),
+    gravel: loader.load(
+	'res/fine_sand.png'
+),
+    ruins: loader.load(
+	'res/fine_sand.png'
+),
+    water: loader.load(
+	'res/water.png'
+),
+    shipwreck: loader.load(
+	'res/fine_sand.png'
+),
+    grass: loader.load(
+	'res/grass.png'
+),
+    salt: loader.load(
+	'res/fine_sand.png'
+    ),
+    unknown: loader.load(
+	'res/fine_sand.png'
+),
+}
 async function getChunk (x, y) {
   const response = await axios.get(`http://localhost:8081/tiles/${x}/${y}`)
   return response.data.tiles
@@ -29,8 +69,6 @@ async function getWorldProperties () {
   const response = await axios.get('http://localhost:8081/world_properties')
   return response.data
 }
-let renderer = null
-let controls = null
 
 const camera = new THREE.PerspectiveCamera(
 
@@ -46,6 +84,7 @@ camera.rotation.x = 3.14/4
 camera.position.x = 1.0
 camera.position.y = 1.0
 camera.position.z = 4.0
+const light = new THREE.DirectionalLight( 0xffffff, 1 );
 
 const tick = () => {
   if (renderer) {
@@ -53,6 +92,7 @@ const tick = () => {
   }
   if (controls) {
   }
+    light.target.updateMatrixWorld();
 
   window.requestAnimationFrame(tick)
 }
@@ -79,7 +119,7 @@ const onKeyDown = function (event) {
       break
   }
 }
-function addTile (tile, surroundingTiles) {
+function addTile (tile, cubeTexture) {
   const geometry = new THREE.BoxGeometry(1,1,tile.h/200)
 
 
@@ -90,23 +130,32 @@ function addTile (tile, surroundingTiles) {
     else {
         color = tileColors["unknown"]
     }
-  const material = new THREE.MeshBasicMaterial({ color: color})
+  const material = new THREE.MeshStandardMaterial({ color: color, map: cubeTexture})
   const mesh = new THREE.Mesh(geometry, material)
   mesh.position.set(tile.x,tile.y,0);
+mesh.castShadow = true; //default is false
+mesh.receiveShadow = true ; //default
   scene.add(mesh)
 }
 async function initScene () {
+    
+light.position.set( 12, 10, 32 ); //default; light shining from top
+light.castShadow = true; // default false
+scene.add( light );
+scene.add( light.target );
+
+light.shadow.mapSize.width = 512; // default
+light.shadow.mapSize.height = 512; // default
+light.shadow.camera.near = 0.5; // default
+light.shadow.camera.far = 1000; // default
+    light.intensity = 1;
   const chunkTiles = await getChunk(0, 0)
   worldProperties = await getWorldProperties()
   for (let i = 0; i < worldProperties.chunk_size; i++) {
     for (let j = 0; j < worldProperties.chunk_size; j++) {
         const tile = chunkTiles[j][i]
-        const surroundingTiles = []
-        surroundingTiles[0] = chunkTiles?.[j-1]?.[i-1] ?? {x:0,y:0,height:0}
-        surroundingTiles[1] = chunkTiles?.[j+1]?.[i-1] ?? {x:0,y:0,height:0}
-        surroundingTiles[2] = chunkTiles?.[j-1]?.[i+1] ?? {x:0,y:0,height:0}
-        surroundingTiles[3] = chunkTiles?.[j+1]?.[i+1] ?? {x:0,y:0,height:0}
-        addTile(tile, surroundingTiles)
+        let texture = tileTextures[tile.tile_type];
+        addTile(tile, texture)
     }
   }
 }
@@ -116,6 +165,9 @@ export async function createScene (el) {
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   controls = new PointerLockControls(camera, renderer.domElement)
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
   await initScene()
   document.addEventListener('keydown', onKeyDown, false)
   worldProperties = await getWorldProperties()
