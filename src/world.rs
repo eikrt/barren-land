@@ -83,6 +83,16 @@ fn get_generated_chunk(
     .with_seed(seed * 2)
     .with_lacunarity(0.8)
     .generate_scaled(0.0, 512.0);
+    let terrain_noise = NoiseBuilder::fbm_2d(
+        (chunk_size * world_width).try_into().unwrap(),
+        (chunk_size * world_height).try_into().unwrap(),
+    )
+    .with_freq(0.10)
+    .with_octaves(9.0 as u8)
+    .with_gain(10.0)
+    .with_seed(seed * 8)
+    .with_lacunarity(1.0)
+    .generate_scaled(0.0, 512.0);
     let biome_noise_1 = NoiseBuilder::fbm_2d(
         (chunk_size * world_width).try_into().unwrap(),
         (chunk_size * world_height).try_into().unwrap(),
@@ -174,7 +184,7 @@ fn get_generated_chunk(
                 relative_y: i as i32,
                 chunk_x: x,
                 chunk_y: y,
-                h: height_noise[perlin_coord],
+                h: height_noise[perlin_coord] + terrain_noise[perlin_coord],
                 tile_type: "barren_land".to_string(),
                 has_trees: false,
                 gathered: true,
