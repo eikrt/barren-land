@@ -30,7 +30,7 @@ async updateTilesInRange() {
   }
 }
 async updateEntities(x,y) {
-    
+  this.clearEntities() 
   const chunkEntities = await network.getChunkEntities(x, y)
     Object.entries(chunkEntities).forEach(([key, value]) => {
 	this.addEntity({key: value})
@@ -83,6 +83,7 @@ addEntity (entityPair) {
   let color = 0xff0000
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff })
   const mesh = new THREE.Mesh(geometry, material)
+  console.log(entity.standing_tile)
   mesh.position.set(entity.x, entity.y, entity.standing_tile.h / this.tileRatio + 1)
   mesh.castShadow = true 
   mesh.receiveShadow = true 
@@ -98,7 +99,7 @@ async clearEntities() {
  const clearedEntities = this.entityObjects.map(eo => eo)
  setTimeout(() => {
  clearedEntities.forEach(c => { 
-    scene.remove(c) 
+    this.scene.remove(c) 
  })
 }, 100)
 }
@@ -122,7 +123,6 @@ refreshEntities() {
 	this.clearEntityChange = 0
         this.updateEntitiesInRange()
 	
-    console.log("dfs")
     }
 }
 }

@@ -87,20 +87,26 @@ async function initScene () {
 tick()
 export async function createScene (el) {
   document.getElementById("mainCanvas").style.display = "none"
-    document.getElementById("playButton").onclick = () => {
+    document.getElementById("playButton").onclick = async () => {
+	
+	network = new Network()
+	worldProperties = await network.getWorldProperties()
+	update = new Update(scene, camera,worldProperties)
+	renderer = new Renderer(el, camera, scene, worldProperties)
+	
+    const x = Math.random() * (worldProperties.chunk_size * worldProperties.world_width - 0) + 0
+    const y = Math.random() * (worldProperties.chunk_size * worldProperties.world_height - 0) + 0
+    const name = "adsf"
+    const id = 10
+    await network.addPlayer(worldProperties, x, y, name, id )
+    controls = new PointerLockControls(camera, renderer.rend.domElement)
+    await initScene()
+	document.addEventListener('keydown', onKeyDown, false)
+	resize()
 	document.getElementById("mainCanvas").style.display = "block"
 	document.getElementById("loginScreen").style.display = "none"
     }
     
-  network = new Network()
-  worldProperties = await network.getWorldProperties()
-  update = new Update(scene, camera,worldProperties)
-  renderer = new Renderer(el, camera, scene, worldProperties)
-  await network.addPlayer()
-  controls = new PointerLockControls(camera, renderer.rend.domElement)
-  await initScene()
-  document.addEventListener('keydown', onKeyDown, false)
-  resize()
 }
 
 window.addEventListener('resize', resize)

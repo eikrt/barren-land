@@ -97,7 +97,7 @@ pub fn process_entities(q: web::Data<Mutex<ActionQueue>>) {
                                 let dist = ((other_entity.y as f32 - entity.y as f32).powf(2.0)
                                     + (other_entity.x as f32 - entity.x as f32).powf(2.0))
                                 .sqrt();
-                                if dist < 2.0 && entity.id != other_entity.id {
+                                if dist < 2.0 && entity.id != other_entity.id && other_entity.entity_type != "coyote".to_string() {
                                     entity.target_entity_id = other_entity.id;
                                     action = PostData {
                                         params: HashMap::from([

@@ -15,16 +15,16 @@ async getWorldProperties () {
   const response = await axios.get('http://localhost:8081/world_properties')
   return response.data
 }
-async addPlayer() {
+async addPlayer(worldProperties,x,y,name,id) {
     
     const response = await axios.post("http://localhost:8081/queue", {
 	params: {command: "spawn",
 	id: "0",
-	x: "0",
-	y: "0",
-	chunk_x: "0",
-	chunk_y: "0",
-	name: "web"}
+	x: x.toString(),
+	y: y.toString(),
+	chunk_x: (x / worldProperties.chunk_size).toString(),
+	chunk_y: (y / worldProperties.chunk_size).toString(),
+	name: name}
     })
 }
 }
